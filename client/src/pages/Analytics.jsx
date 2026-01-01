@@ -1,11 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
 import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import {
-    Activity, AlertTriangle, Truck, Map as MapIcon, Calendar, Filter, Download, ChevronDown
-} from 'lucide-react';
+import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar } from 'lucide-react';
+import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';
 
@@ -272,7 +272,61 @@ const Analytics = () => {
                                 All Time
                                 <ChevronDown className="w-4 h-4" />
                             </button>
-                            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                            <button
+                                onClick={() => {
+                                    if (!iriFiles || iriFiles.length === 0) {
+                                        alert("No data available to export.");
+                                        return;
+                                    }
+
+                                    // 1. Prepare Data for Report
+                                    const visibleFiles = iriFiles.filter(f => f.visible);
+
+                                    // Calculate summaries
+                                    const totalDistance = visibleFiles.reduce((acc, f) => acc + (f.stats?.totalDistance || 0), 0);
+                                    const avgIri = visibleFiles.length > 0
+                                        ? visibleFiles.reduce((acc, f) => acc + (f.stats?.averageIri || 0), 0) / visibleFiles.length
+                                        : 0;
+
+                                    // Count critical segments
+                                    let criticalSegments = 0;
+                                    visibleFiles.forEach(f => {
+                                        if (f.segments) criticalSegments += f.segments.filter(s => s.iri_value > 7).length;
+                                    });
+
+                                    // Prepare potholes list
+                                    let allPotholes = [];
+                                    if (potholeFiles) {
+                                        potholeFiles.filter(f => f.visible).forEach(f => {
+                                            if (f.data) allPotholes.push(...f.data);
+                                        });
+                                    }
+
+                                    const reportData = {
+                                        summary: {
+                                            totalDistance,
+                                            avgIri,
+                                            totalPotholes: allPotholes.length,
+                                            criticalSegments
+                                        },
+                                        files: visibleFiles.map(f => ({
+                                            filename: f.filename,
+                                            stats: {
+                                                averageIri: f.stats.averageIri,
+                                                quality: getQualityAssessment(f.stats.averageIri)
+                                            },
+                                            segments: f.segments
+                                        })),
+                                        potholes: allPotholes,
+                                        traffic: trafficAnalytics || { totalCount: 0, compositionData: [] },
+                                        pavement: pavementAnalytics || { totalSegments: 0, pavementData: [] }
+                                    };
+
+                                    // 2. Generate PDF
+                                    generateReport(reportData);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-md active:scale-95 transition-all"
+                            >
                                 <Download className="w-4 h-4" />
                                 Export Report
                             </button>
@@ -281,7 +335,7 @@ const Analytics = () => {
 
                     {/* Tabs */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-                        <div className="flex gap-1 overflow-x-auto">
+                        <div className="flex gap-4 overflow-x-auto">
                             {tabs.map((tab) => {
                                 const Icon = activeTab === tab.id ? tab.icon : tab.icon;
                                 return (
@@ -388,9 +442,9 @@ const Analytics = () => {
                                         {/* KPI Row */}
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                             <KpiCard title="Total Potholes" value={potholeAnalytics.totalCount} trend="" status="danger" />
-                                            <KpiCard title="Avg Confidence" value={`${potholeAnalytics.avgConfidence}%`} trend="" status="success" />
-                                            <KpiCard title="Min Confidence" value={`${potholeAnalytics.minConfidence}%`} trend="" status="warning" />
-                                            <KpiCard title="Max Confidence" value={`${potholeAnalytics.maxConfidence}%`} trend="" status="success" />
+                                            <KpiCard title="Avg Confidence" value={`${potholeAnalytics.avgConfidence}% `} trend="" status="success" />
+                                            <KpiCard title="Min Confidence" value={`${potholeAnalytics.minConfidence}% `} trend="" status="warning" />
+                                            <KpiCard title="Max Confidence" value={`${potholeAnalytics.maxConfidence}% `} trend="" status="success" />
                                         </div>
 
                                         {/* Charts Row */}
@@ -409,11 +463,11 @@ const Analytics = () => {
                                                                 outerRadius={90}
                                                                 paddingAngle={3}
                                                                 dataKey="value"
-                                                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}% `}
                                                                 labelLine={false}
                                                             >
                                                                 {potholeAnalytics.confidenceDistribution.map((entry, index) => (
-                                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                                    <Cell key={`cell - ${index} `} fill={entry.color} />
                                                                 ))}
                                                             </Pie>
                                                             <Tooltip formatter={(value) => `${value} detections`} />
@@ -471,7 +525,7 @@ const Analytics = () => {
                                                     >
                                                         <img
                                                             src={img.url}
-                                                            alt={`Pothole ${idx + 1}`}
+                                                            alt={`Pothole ${idx + 1} `}
                                                             className="w-full h-full object-cover"
                                                             loading="lazy"
                                                             onError={(e) => {
@@ -480,9 +534,9 @@ const Analytics = () => {
                                                             }}
                                                         />
                                                         {/* Confidence Badge */}
-                                                        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold text-white shadow ${img.confidence >= 0.8 ? 'bg-green-500' :
+                                                        <div className={`absolute top - 2 right - 2 px - 2 py - 1 rounded - full text - xs font - bold text - white shadow ${img.confidence >= 0.8 ? 'bg-green-500' :
                                                             img.confidence >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
-                                                            }`}>
+                                                            } `}>
                                                             {(img.confidence * 100).toFixed(0)}%
                                                         </div>
                                                         {/* Hover Overlay */}
@@ -528,7 +582,7 @@ const Analytics = () => {
                                                                 label
                                                             >
                                                                 {trafficAnalytics.compositionData.map((entry, index) => (
-                                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                                    <Cell key={`cell - ${index} `} fill={entry.color} />
                                                                 ))}
                                                             </Pie>
                                                             <Tooltip />
@@ -585,7 +639,7 @@ const Analytics = () => {
                                                             <Tooltip />
                                                             <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]}>
                                                                 {pavementAnalytics.pavementData.map((entry, index) => (
-                                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                                    <Cell key={`cell - ${index} `} fill={entry.color} />
                                                                 ))}
                                                             </Bar>
                                                         </BarChart>
@@ -617,7 +671,7 @@ const KpiCard = ({ title, value, unit, trend, status }) => {
                 {unit && <span className="ml-1 text-sm text-gray-500">{unit}</span>}
             </div>
             {trend && trend !== '-' && (
-                <div className={`mt-2 text-sm font-medium ${colorClass}`}>
+                <div className={`mt - 2 text - sm font - medium ${colorClass} `}>
                     {trend} <span className="text-gray-400 font-normal">vs last month</span>
                 </div>
             )}
