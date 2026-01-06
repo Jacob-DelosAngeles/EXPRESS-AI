@@ -4,7 +4,7 @@ import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar } from 'lucide-react';
+import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar, Filter } from 'lucide-react';
 import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';

@@ -2,6 +2,9 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// API Base URL - uses environment variable in production, relative path in dev
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
 // Express AI Branding Colors - Blue/Black Theme (Formal)
 const COLORS = {
     blue: [37, 99, 235],       // Blue-600 #2563eb (for "Express")
@@ -17,17 +20,29 @@ const COLORS = {
 const loadImageAsBase64 = (url) => {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
+        img.crossOrigin = 'Anonymous'; // Required for canvas export
+
+        // Add cache busting to prevent using cached 'no-cors' images from the map
+        const safeUrl = url.startsWith('data:') ? url :
+            url + (url.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
         img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0);
-            resolve(canvas.toDataURL('image/png'));
+            try {
+                resolve(canvas.toDataURL('image/png'));
+            } catch (e) {
+                reject(e); // Tainted canvas
+            }
         };
-        img.onerror = reject;
-        img.src = url;
+        img.onerror = (e) => {
+            console.error('Image load failed:', url, e);
+            reject(e);
+        };
+        img.src = safeUrl;
     });
 };
 
@@ -40,6 +55,7 @@ export const generateReport = async (projectData) => {
     // Try to load logo
     let logoData = null;
     try {
+        // Use standard path (file was updated with white background version)
         logoData = await loadImageAsBase64('/logos/express-ai-logo.png');
     } catch (e) {
         console.warn('Could not load logo, using text fallback');
@@ -327,15 +343,42 @@ export const generateReport = async (projectData) => {
                 const y = currentY; // Use current Y for this row
 
                 try {
-                    const imgData = await loadImageAsBase64(p.image_url);
+                    // Use backend proxy to avoid CORS issues with R2/Cloud storage
+                    // The report runs in browser, so /api/v1... goes through Vite proxy to Backend
+                    let imgUrl = p.image_url;
+
+                    // If we have a filename/path, prefer the local proxy
+                    // Check if 'image_path' (DB/Raw) or 'imagePath' (Video) exists
+                    const filename = p.image_path || p.imagePath || (p.image_url ? p.image_url.split('/').pop().split('?')[0] : null);
+
+                    // BEST METHOD: Use storage_path if available (direct proxy access)
+                    // This bypasses filename lookup issues in the DB
+                    if (p.storage_path) {
+                        imgUrl = `${API_URL}/pothole/proxy?key=${encodeURIComponent(p.storage_path)}`;
+                    } else if (filename && !filename.startsWith('http') && !filename.startsWith('blob')) {
+                        // Fallback: Filename lookup proxy
+                        imgUrl = `${API_URL}/pothole/image/${filename}`;
+                    } else if (filename && p.image_url && p.image_url.includes('http')) {
+                        // Even if we have a full URL, try to use the proxy if it looks like a cloud URL
+                        imgUrl = `${API_URL}/pothole/image/${filename}`;
+                    }
+
+                    const imgData = await loadImageAsBase64(imgUrl);
                     doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
                 } catch (e) {
-                    // Draw placeholder box if image fails
-                    doc.setDrawColor(200);
-                    doc.rect(x, y, imgWidth, imgHeight);
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    doc.text('Image not available', x + 15, y + 25);
+                    console.warn("Failed to load image via proxy, falling back to original URL", e);
+                    try {
+                        // Fallback to original URL
+                        const imgData = await loadImageAsBase64(p.image_url);
+                        doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+                    } catch (e2) {
+                        // Draw placeholder box if image fails
+                        doc.setDrawColor(200);
+                        doc.rect(x, y, imgWidth, imgHeight);
+                        doc.setFontSize(8);
+                        doc.setTextColor(150);
+                        doc.text('Image not available', x + 15, y + 25);
+                    }
                 }
 
                 // Add ID label below image

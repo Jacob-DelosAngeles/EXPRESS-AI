@@ -223,45 +223,53 @@ async def process_pothole_data(
 
 
 @router.get("/image/{filename}")
-@router.get("/image/{filename}")
 def get_pothole_image(
     filename: str,
     db: Session = Depends(get_db)
 ):
     """
-    Proxy endpoint to serve pothole images securely from R2/storage.
-    Bypasses public R2 DNS issues by streaming through the backend.
+    Legacy Proxy: serve by filename lookup (DB dependent).
     """
     try:
-        # 1. Find the file record to get the storage path
-        # We search by original filename as that's what we expose in the ID
+        # 1. Find the file record 
         image_record = db.query(UploadModel).filter(
             UploadModel.category == 'pothole',
             UploadModel.original_filename == filename
         ).first()
 
         if not image_record:
-            # Fallback: try constructing path if we just have the filename
-            # This is tricky without user ID. 
-            # For now, we rely on the DB record being present.
-            raise HTTPException(status_code=404, detail="Image not found")
+            raise HTTPException(status_code=404, detail="Image not found in DB")
 
-        # 2. Fetch content stream (optimized for speed)
-        # Bypasses loading full file into memory
+        # 2. Stream content
         file_stream = file_handler.storage.get_file_stream(image_record.storage_path)
         
-        # 3. Stream the response with caching headers
-        # Cache for 1 year (31536000 seconds) since these images (pothole frames) are immutable
-        headers = {
-            "Cache-Control": "public, max-age=31536000, immutable"
-        }
-        
-        return StreamingResponse(
-            file_stream, 
-            media_type="image/jpeg",
-            headers=headers
-        )
+        headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+        return StreamingResponse(file_stream, media_type="image/jpeg", headers=headers)
 
     except Exception as e:
         logger.error(f"Error serving image proxy {filename}: {e}")
         raise HTTPException(status_code=404, detail="Image not found")
+
+@router.get("/proxy")
+def get_image_by_key(
+    key: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Direct Proxy: serve by storage key (storage_path).
+    Required for reports where we know the exact path but might not have a clean DB record per file.
+    """
+    try:
+        # Security: basic check to prevent directory traversal or accessing abuse
+        if ".." in key or key.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid key format")
+            
+        # Stream directly from storage provider (R2/Local)
+        file_stream = file_handler.storage.get_file_stream(key)
+        
+        headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+        return StreamingResponse(file_stream, media_type="image/jpeg", headers=headers)
+        
+    except Exception as e:
+        logger.error(f"Error proxying key {key}: {e}")
+        raise HTTPException(status_code=404, detail="File not found")
