@@ -2,9 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional, Dict, Any, Union
 import os
 import pandas as pd
+import json
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from io import BytesIO
+from datetime import datetime
 
 from models.upload import UploadModel
 from models.user import UserModel
@@ -29,6 +31,7 @@ class PavementProcessResponse(BaseModel):
     filename: str
     count: int
     data: List[PavementSegment]
+    from_cache: Optional[bool] = False
 
 @router.get("/process/{filename}", response_model=PavementProcessResponse)
 async def process_pavement_data(
@@ -37,11 +40,12 @@ async def process_pavement_data(
     db: Session = Depends(get_db)
 ):
     """
-    Process a pavement type CSV file and return map-ready segments
+    Process a pavement type CSV file and return map-ready segments.
+    Uses shared data model (all users see all pavement data).
+    Includes caching for instant retrieval after first processing.
     """
-    # 1. Find the file in the database
+    # 1. Find the file in the database (SHARED DATA MODEL - no user_id filter)
     upload_record = db.query(UploadModel).filter(
-        UploadModel.user_id == current_user.id,
         UploadModel.category == 'pavement',
         UploadModel.file_type == 'csv',
         (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
@@ -50,8 +54,18 @@ async def process_pavement_data(
     if not upload_record:
         raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
+    # 2. Check cache first (INSTANT return if available)
+    if upload_record.cached_data:
+        try:
+            cached_response = json.loads(upload_record.cached_data)
+            cached_response['from_cache'] = True
+            return cached_response
+        except json.JSONDecodeError:
+            # Invalid cache, will reprocess
+            pass
+
     try:
-        # 2. Get file content from storage (works for both local and R2)
+        # 3. Get file content from storage (works for both local and R2)
         content_bytes = file_handler.storage.get_file_content(upload_record.storage_path)
         df = pd.read_csv(BytesIO(content_bytes))
         
@@ -83,7 +97,8 @@ async def process_pavement_data(
                 "success": True,
                 "filename": filename,
                 "count": 0,
-                "data": []
+                "data": [],
+                "from_cache": False
             }
             
         current_type = None
@@ -118,8 +133,8 @@ async def process_pavement_data(
                         "points": current_points,
                         "type": current_type,
                         "color": color_map.get(current_type, '#808080'),
-                        "start_time": segment_start_time,
-                        "end_time": current_end_time
+                        "start_time": str(segment_start_time) if segment_start_time else None,
+                        "end_time": str(current_end_time) if current_end_time else None
                     })
                 current_points = []
                 segment_start_time = timestamp # Reset start time for next segment containing this point
@@ -133,19 +148,32 @@ async def process_pavement_data(
                 "points": current_points,
                 "type": current_type,
                 "color": color_map.get(current_type, '#808080'),
-                "start_time": segment_start_time,
-                "end_time": current_end_time
+                "start_time": str(segment_start_time) if segment_start_time else None,
+                "end_time": str(current_end_time) if current_end_time else None
             })
 
-        return {
+        response_data = {
             "success": True,
             "filename": filename,
             "count": len(segments),
-            "data": segments
+            "data": segments,
+            "from_cache": False
         }
+
+        # 4. Cache the result for instant future retrieval
+        try:
+            upload_record.cached_data = json.dumps(response_data)
+            upload_record.cache_timestamp = datetime.utcnow()
+            db.commit()
+        except Exception as cache_err:
+            # Non-fatal, just log
+            print(f"Failed to cache pavement data: {cache_err}")
+
+        return response_data
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing CSV: {str(e)}")
+
 

@@ -16,6 +16,9 @@ const useAppStore = create((set) => ({
     iri: true // Global toggle for all IRI files
   },
 
+  // Map State
+  mapStyle: 'Google Hybrid',
+
   // Actions
   setVehicles: (data) => set({ vehicles: data }),
   setPotholes: (data) => set({ potholes: data }),
@@ -83,6 +86,8 @@ const useAppStore = create((set) => ({
       [layer]: !state.activeLayers[layer]
     }
   })),
+
+  setMapStyle: (style) => set({ mapStyle: style }),
 
   resetData: () => set({
     vehicles: [],

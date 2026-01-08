@@ -59,6 +59,12 @@ const Layout = () => {
                     <nav className="hidden md:flex space-x-1">
                         <NavLink to="/app/dashboard" label="Dashboard" />
                         <NavLink to="/app/analytics" label="Analytics" />
+                        <Link
+                            to="/"
+                            className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                        >
+                            Overview
+                        </Link>
                     </nav>
                 </div>
 

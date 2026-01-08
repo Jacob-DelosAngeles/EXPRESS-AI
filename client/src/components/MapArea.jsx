@@ -43,6 +43,30 @@ const CarIcon = createVehicleIcon('#2563eb', '🚗');
 const TruckIcon = createVehicleIcon('#f97316', '🚛');
 const MotorcycleIcon = createVehicleIcon('#16a34a', '🏍️');
 
+// Map style configurations
+const mapStyles = {
+    OpenStreetMap: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '© OpenStreetMap contributors'
+    },
+    'Google Roads': {
+        url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attribution: '© Google Maps'
+    },
+    'Google Satellite': {
+        url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attribution: '© Google Maps'
+    },
+    'Google Hybrid': {
+        url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        attribution: '© Google Maps'
+    },
+    'Google Terrain': {
+        url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+        attribution: '© Google Maps'
+    },
+};
+
 // Component to update map bounds based on data
 const MapUpdater = ({ data }) => {
     const map = useMap();
@@ -66,7 +90,9 @@ const MapUpdater = ({ data }) => {
 };
 
 const MapArea = () => {
-    const { vehicles, potholes, pavement, iriFiles, activeLayers } = useAppStore();
+    const { vehicles, potholes, pavement, iriFiles, activeLayers, mapStyle, setMapStyle } = useAppStore();
+
+    const currentStyle = mapStyles[mapStyle] || mapStyles.OpenStreetMap;
 
     // Combine all points to calculate bounds
     const safeVehicles = (vehicles || []).filter(v => v && typeof v.lat === 'number');
@@ -102,8 +128,8 @@ const MapArea = () => {
                 style={{ height: '100%', width: '100%' }}
             >
                 <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url={currentStyle.url}
+                    attribution={currentStyle.attribution}
                 />
 
                 {allPoints.length > 0 && <MapUpdater data={allPoints} />}
@@ -190,6 +216,21 @@ const MapArea = () => {
             <div className="absolute bottom-4 right-4 bg-white p-4 rounded shadow-lg z-[1000] max-h-[80vh] overflow-y-auto">
                 <h4 className="font-bold mb-2 text-sm">Layers & Legend</h4>
                 <div className="space-y-3 text-sm">
+                    {/* Map Style Selector */}
+                    <div className="mb-4 bg-gray-50 p-2 rounded">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Map Type</label>
+                        <select
+                            value={mapStyle}
+                            onChange={(e) => setMapStyle(e.target.value)}
+                            className="w-full text-xs p-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                            {Object.keys(mapStyles).map(style => (
+                                <option key={style} value={style}>{style}</option>
+                            ))}
+                        </select>
+                    </div>
+
+
                     {activeLayers.iri && (
                         <div>
                             <div className="font-semibold text-xs mb-1 bg-gray-100 p-1 rounded">IRI Quality</div>
