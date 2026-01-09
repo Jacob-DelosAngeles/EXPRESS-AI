@@ -600,6 +600,11 @@
 }
 
 /* ===== RESPONSIVE ===== */
+/* Mobile Toggle Default Hidden on Desktop */
+.mobile-toggle-btn {
+    display: none;
+}
+
 @media (max-width: 1024px) {
     .hero-section {
         flex-direction: column;
@@ -623,13 +628,61 @@
 @media (max-width: 768px) {
     .landing-navbar {
         padding: 1rem 1.5rem;
-        flex-direction: column;
-        gap: 1rem;
+        /* Keep row for logo and toggle */
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
     }
 
+    .mobile-toggle-btn {
+        display: block;
+        padding: 0.5rem;
+        border-radius: 50%;
+        transition: background 0.3s ease;
+    }
+
+    .mobile-toggle-btn:active {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Hide links by default on mobile */
     .navbar-links {
-        gap: 1rem;
-        flex-wrap: wrap;
+        display: none;
+    }
+
+    /* Show links when open */
+    .navbar-links.mobile-open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(15, 23, 42, 0.98);
+        /* Matches navbar dark theme */
+        padding: 2rem;
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        gap: 1.5rem;
+        backdrop-filter: blur(16px);
+        animation: dropdownFadeIn 0.3s ease;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .nav-user-dropdown {
+        position: static;
+        width: 100%;
+        box-shadow: none;
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        margin-top: 0.5rem;
+    }
+
+    .nav-user-container {
+        width: 100%;
+    }
+
+    .nav-user-btn {
+        width: 100%;
         justify-content: center;
     }
 
@@ -637,7 +690,10 @@
         font-size: 2.2rem;
     }
 
-    .hero-section,
+    .hero-section {
+        padding: 10rem 1.5rem 4rem 1.5rem;
+    }
+
     .features-section,
     .benefits-section,
     .about-section,

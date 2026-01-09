@@ -245,6 +245,22 @@ const Analytics = () => {
     }, [pavementFiles]);
 
 
+    // Helper to truncate long filenames for mobile display
+    const truncateFilename = (filename, maxLength = 22) => {
+        if (!filename || filename.length <= maxLength) return filename;
+
+        // Find the LAST dot for the actual extension (.csv)
+        const lastDotIndex = filename.lastIndexOf('.');
+        const extension = lastDotIndex > 0 ? filename.substring(lastDotIndex) : '';
+        const name = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename;
+
+        // Keep first 12 chars + '...' + last 4 chars + extension
+        const prefix = name.substring(0, 12);
+        const suffix = name.substring(name.length - 4);
+
+        return `${prefix}...${suffix}${extension}`;
+    };
+
     const tabs = [
         { id: 'iri', label: 'IRI Analysis', icon: Activity },
         { id: 'pothole', label: 'Pothole Detection', icon: AlertTriangle },
@@ -257,11 +273,11 @@ const Analytics = () => {
             {/* Reuse Sidebar for consistency if Dashboard uses it */}
             <Sidebar />
 
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 <div className="max-w-7xl mx-auto space-y-8">
 
                     {/* Header */}
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pl-14 lg:pl-0">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
                             <p className="text-gray-500 mt-1">Comprehensive analysis of road quality and traffic data</p>
@@ -371,8 +387,8 @@ const Analytics = () => {
                                         </div>
 
                                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                            <h3 className="text-lg font-bold text-gray-900 mb-6">
-                                                IRI Profile: {iriAnalytics.filename}
+                                            <h3 className="text-lg font-bold text-gray-900 mb-6" title={iriAnalytics.filename}>
+                                                IRI Profile: {truncateFilename(iriAnalytics.filename)}
                                             </h3>
                                             <div className="h-80">
                                                 <ResponsiveContainer width="100%" height="100%">
@@ -395,20 +411,25 @@ const Analytics = () => {
                                                 {iriFiles.filter(f => f.visible).map(file => {
                                                     const assessment = getQualityAssessment(file.stats.averageIri);
                                                     return (
-                                                        <div key={file.id} className={`p-6 rounded-xl border ${assessment.color} transition-all`}>
-                                                            <div className="flex items-start justify-between mb-4">
-                                                                <div>
-                                                                    <h4 className="text-lg font-bold flex items-center gap-3">
-                                                                        {file.filename}
-                                                                        <span className={`text-xs px-2 py-1 rounded-full font-bold uppercase ${assessment.badge}`}>
+                                                        <div key={file.id} className={`p-4 md:p-6 rounded-xl border ${assessment.color} transition-all`}>
+                                                            {/* Mobile: Stack vertically. Desktop: Side by side */}
+                                                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                                                                {/* Left: Filename, Badge, Description */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <h4 className="text-base md:text-lg font-bold truncate" title={file.filename}>
+                                                                            {truncateFilename(file.filename, 18)}
+                                                                        </h4>
+                                                                        <span className={`text-[10px] md:text-xs px-2 py-0.5 rounded-full font-bold uppercase whitespace-nowrap flex-shrink-0 ${assessment.badge}`}>
                                                                             {assessment.rating}
                                                                         </span>
-                                                                    </h4>
-                                                                    <p className="opacity-90 mt-1 font-medium">{assessment.description}</p>
+                                                                    </div>
+                                                                    <p className="opacity-90 text-sm font-medium">{assessment.description}</p>
                                                                 </div>
-                                                                <div className="text-right">
-                                                                    <div className="text-3xl font-bold">{file.stats.averageIri.toFixed(2)}</div>
-                                                                    <div className="text-xs opacity-75 uppercase font-bold tracking-wider">Average IRI</div>
+                                                                {/* Right: IRI Value */}
+                                                                <div className="text-left md:text-right flex-shrink-0">
+                                                                    <div className="text-2xl md:text-3xl font-bold">{file.stats.averageIri.toFixed(2)}</div>
+                                                                    <div className="text-[10px] md:text-xs opacity-75 uppercase font-bold tracking-wider">Average IRI</div>
                                                                 </div>
                                                             </div>
 

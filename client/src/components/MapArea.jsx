@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from 'react-leaflet';
+import { Layers, X } from 'lucide-react';
 import useAppStore from '../store/useAppStore';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -90,6 +91,7 @@ const MapUpdater = ({ data }) => {
 };
 
 const MapArea = () => {
+    const [isLegendOpen, setIsLegendOpen] = useState(false);
     const { vehicles, potholes, pavement, iriFiles, activeLayers, mapStyle, setMapStyle } = useAppStore();
 
     const currentStyle = mapStyles[mapStyle] || mapStyles.OpenStreetMap;
@@ -213,7 +215,21 @@ const MapArea = () => {
             </MapContainer>
 
             {/* Legend Overlay */}
-            <div className="absolute bottom-4 right-4 bg-white p-4 rounded shadow-lg z-[1000] max-h-[80vh] overflow-y-auto">
+            {/* Mobile Toggle Button */}
+            <button
+                onClick={() => setIsLegendOpen(!isLegendOpen)}
+                className="lg:hidden absolute bottom-4 right-4 z-[1001] bg-white p-3 rounded-full shadow-lg hover:bg-gray-50 transition-colors"
+                title="Toggle Layers"
+            >
+                {isLegendOpen ? <X size={24} className="text-gray-700" /> : <Layers size={24} className="text-gray-700" />}
+            </button>
+
+            <div className={`
+                absolute right-4 bg-white p-4 rounded shadow-lg z-[1000] max-h-[60vh] overflow-y-auto
+                transition-all duration-300 ease-in-out
+                ${isLegendOpen ? 'bottom-20 opacity-100 scale-100' : 'bottom-20 opacity-0 scale-95 pointer-events-none'}
+                lg:bottom-4 lg:opacity-100 lg:scale-100 lg:pointer-events-auto
+            `}>
                 <h4 className="font-bold mb-2 text-sm">Layers & Legend</h4>
                 <div className="space-y-3 text-sm">
                     {/* Map Style Selector */}

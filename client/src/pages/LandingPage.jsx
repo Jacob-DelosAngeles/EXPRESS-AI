@@ -1,31 +1,40 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Menu, X } from 'lucide-react';
 import './LandingPage.css';
 
 const LandingPage = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleLogout = () => {
         logout();
         setUserDropdownOpen(false);
+        setMobileMenuOpen(false);
         navigate('/login');
     };
 
     return (
         <div className="landing-page">
             {/* Top Navigation Bar */}
+            {/* Top Navigation Bar */}
             <nav className="landing-navbar">
                 <div className="navbar-logo">
                     <img src="/logos/express-ai-logo.png" alt="Express AI" className="logo-img" />
                     <span className="logo-text">Express AI</span>
                 </div>
-                <div className="navbar-links">
-                    <Link to="/app/dashboard" className="nav-link">Dashboard</Link>
-                    <Link to="/app/analytics" className="nav-link">Analytics</Link>
-                    <a href="#about" className="nav-link">About</a>
+
+                <div className="mobile-toggle-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                    {mobileMenuOpen ? <X size={28} color="#94a3b8" /> : <Menu size={28} color="#94a3b8" />}
+                </div>
+
+                <div className={`navbar-links ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+                    <Link to="/app/dashboard" className="nav-link" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                    <Link to="/app/analytics" className="nav-link" onClick={() => setMobileMenuOpen(false)}>Analytics</Link>
+                    <a href="#about" className="nav-link" onClick={() => setMobileMenuOpen(false)}>About</a>
                     {user ? (
                         <div className="nav-user-container">
                             <button
@@ -47,7 +56,7 @@ const LandingPage = () => {
                                         <Link
                                             to="/app/admin"
                                             className="dropdown-item"
-                                            onClick={() => setUserDropdownOpen(false)}
+                                            onClick={() => { setUserDropdownOpen(false); setMobileMenuOpen(false); }}
                                         >
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -67,7 +76,7 @@ const LandingPage = () => {
                             )}
                         </div>
                     ) : (
-                        <Link to="/login" className="nav-link nav-login">Login</Link>
+                        <Link to="/login" className="nav-link nav-login" onClick={() => setMobileMenuOpen(false)}>Login</Link>
                     )}
                 </div>
             </nav>

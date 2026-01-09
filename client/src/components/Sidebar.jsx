@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, AlertCircle, CheckCircle, Map as MapIcon, Car, AlertTriangle, Activity, Layers, Trash, X } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle, Map as MapIcon, Car, AlertTriangle, Activity, Layers, Trash, X, Menu } from 'lucide-react';
 import { fileService } from '../services/api';
 import useAppStore from '../store/useAppStore';
 // ... (imports)
@@ -260,6 +260,25 @@ const Sidebar = () => {
     pavementFiles, setPavementFiles, addPavementFile, togglePavementFile, removePavementFile, clearPavementFiles,
     activeLayers, toggleLayer
   } = useAppStore();
+
+  const [isOpen, setIsOpen] = useState(false); // Mobile toggle state
+
+  // Close sidebar when active layer changes on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsOpen(true); // Always open on desktop
+      } else {
+        setIsOpen(false); // Closed by default on mobile
+      }
+    };
+
+    // Initial check
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [deleteConfirm, setDeleteConfirm] = useState(null); // ID of file pending deletion confirmation
   const [isRestoring, setIsRestoring] = useState(true); // Track initial data loading
@@ -754,240 +773,127 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="w-96 bg-blue-50 border-r border-gray-200 h-full overflow-y-auto flex-shrink-0 shadow-sm z-0 custom-scrollbar">
-      <div className="p-6">
-        <div className="text-center mb-8">
-          <h2 className="text-xl font-bold text-[#262730] mb-1">Express AI</h2>
-          <div className="h-0.5 w-full bg-blue-500 mb-2 opacity-50"></div>
-          <p className="text-xs text-gray-500 italic">Expert Platform for Road Evaluation and Smart Surveillance</p>
-        </div>
+    <>
+      {/* Mobile Toggle Button (Visible only on mobile) */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className="lg:hidden fixed top-[160px] left-[10px] z-[3000] bg-white p-1 rounded shadow-md border-2 border-[rgba(0,0,0,0.2)] text-black hover:bg-gray-50 transition-colors"
+        title="Open Menu"
+      >
+        <Menu size={20} />
+      </button>
 
-        {/* Loading Indicator */}
-        {isRestoring && (
-          <div className="mb-6 bg-blue-100 border border-blue-300 rounded-lg p-4 text-center">
-            <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mb-2"></div>
-            <p className="text-sm font-medium text-blue-800">Loading your data...</p>
-            <p className="text-xs text-blue-600 mt-1">This may take a moment on first load</p>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-[2999] backdrop-blur-sm transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Container */}
+      <div className={`
+          bg-blue-50 border-r border-gray-200 h-full overflow-y-auto flex-shrink-0 shadow-xl lg:shadow-sm z-[3001] custom-scrollbar
+          fixed lg:relative inset-y-0 left-0
+          transform transition-transform duration-300 ease-out
+          w-80 lg:w-96
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+
+        {/* Mobile Close Button inside Sidebar */}
+        <button
+          onClick={() => setIsOpen(false)}
+          className="lg:hidden absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-900 rounded-full hover:bg-gray-200 transition-colors"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="p-6">
+          <div className="text-center mb-8">
+            <h2 className="text-xl font-bold text-[#262730] mb-1">Express AI</h2>
+            <div className="h-0.5 w-full bg-blue-500 mb-2 opacity-50"></div>
+            <p className="text-xs text-gray-500 italic">Expert Platform for Road Evaluation and Smart Surveillance</p>
           </div>
-        )}
 
-        {/* Error with Retry */}
-        {!isRestoring && restoreError && (
-          <div className="mb-6 bg-amber-100 border border-amber-300 rounded-lg p-4 text-center">
-            <p className="text-sm font-medium text-amber-800">⚠️ {restoreError}</p>
-            <button
-              onClick={handleRetryLoad}
-              className="mt-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded transition-colors"
-            >
-              Retry Loading
-            </button>
-          </div>
-        )}
+          {/* Loading Indicator */}
+          {isRestoring && (
+            <div className="mb-6 bg-blue-100 border border-blue-300 rounded-lg p-4 text-center">
+              <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mb-2"></div>
+              <p className="text-sm font-medium text-blue-800">Loading your data...</p>
+              <p className="text-xs text-blue-600 mt-1">This may take a moment on first load</p>
+            </div>
+          )}
 
-        <UploadSection
-          title="Vehicle Detection Data"
-          subLabel="Upload Vehicle Detection CSV Files"
-          icon={Car}
-          onUpload={handleVehicleUpload}
-        />
+          {/* Error with Retry */}
+          {!isRestoring && restoreError && (
+            <div className="mb-6 bg-amber-100 border border-amber-300 rounded-lg p-4 text-center">
+              <p className="text-sm font-medium text-amber-800">⚠️ {restoreError}</p>
+              <button
+                onClick={handleRetryLoad}
+                className="mt-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded transition-colors"
+              >
+                Retry Loading
+              </button>
+            </div>
+          )}
 
-        {/* Replaced generic section with PotholeUploadSection */}
-        <PotholeUploadSection
-          title="Pothole Detection Data"
-          icon={AlertTriangle}
-          onUpload={handlePotholeUpload}
-        />
+          <UploadSection
+            title="Vehicle Detection Data"
+            subLabel="Upload Vehicle Detection CSV Files"
+            icon={Car}
+            onUpload={handleVehicleUpload}
+          />
 
-        <UploadSection
-          title="IRI Sensor Data"
-          subLabel="Upload IRI Sensor CSV Files"
-          icon={Activity}
-          onUpload={handleIriUpload}
-        />
+          {/* Replaced generic section with PotholeUploadSection */}
+          <PotholeUploadSection
+            title="Pothole Detection Data"
+            icon={AlertTriangle}
+            onUpload={handlePotholeUpload}
+          />
 
-        <UploadSection
-          title="Road Type Classification"
-          subLabel="Upload Road Type CSV Files"
-          icon={MapIcon}
-          onUpload={handlePavementUpload}
-        />
+          <UploadSection
+            title="IRI Sensor Data"
+            subLabel="Upload IRI Sensor CSV Files"
+            icon={Activity}
+            onUpload={handleIriUpload}
+          />
 
-        <div className="mt-8">
-          <StreamlitHeader title="Data Layers" icon={Layers} />
-          <div className="bg-white p-3 rounded border border-gray-200">
-            <LayerToggle
-              label="Vehicles"
-              active={activeLayers.vehicles}
-              onToggle={() => toggleLayer('vehicles')}
-              color="bg-blue-500"
-            />
-            {/* Individual Vehicle Files */}
-            {activeLayers.vehicles && vehicleFiles.length > 0 && (
-              <div className="mt-2 space-y-2 mb-4">
-                {vehicleFiles.map(file => (
-                  <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={file.visible}
-                          onChange={() => toggleVehicleFile(file.id)}
-                          className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
-                        />
-                        <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
-                          {file.filename}
-                        </span>
-                      </div>
-                      {deleteConfirm === file.id ? (
-                        <button
-                          onClick={(e) => handleDeleteVehicle(file.id, e)}
-                          className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
-                        >
-                          Confirm
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete file"
-                        >
-                          <Trash size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <UploadSection
+            title="Road Type Classification"
+            subLabel="Upload Road Type CSV Files"
+            icon={MapIcon}
+            onUpload={handlePavementUpload}
+          />
 
-            <LayerToggle
-              label="Potholes"
-              active={activeLayers.potholes}
-              onToggle={() => toggleLayer('potholes')}
-              color="bg-red-500"
-            />
-
-            {/* Individual Pothole Files */}
-            {activeLayers.potholes && potholeFiles.length > 0 && (
-              <div className="mt-2 space-y-2 mb-4">
-                {potholeFiles.map(file => (
-                  <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={file.visible}
-                          onChange={() => togglePotholeFile(file.id)}
-                          className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
-                        />
-                        <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
-                          {file.filename}
-                        </span>
-                      </div>
-                      {deleteConfirm === file.id ? (
-                        <button
-                          onClick={(e) => handleDeletePothole(file.id, e)}
-                          className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
-                        >
-                          Confirm
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete file"
-                        >
-                          <Trash size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <LayerToggle
-              label="Pavement"
-              active={activeLayers.pavement}
-              onToggle={() => toggleLayer('pavement')}
-              color="bg-gray-500"
-            />
-
-            {/* Individual Pavement Files */}
-            {activeLayers.pavement && pavementFiles.length > 0 && (
-              <div className="mt-2 space-y-2 mb-4">
-                {pavementFiles.map(file => (
-                  <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={file.visible}
-                          onChange={() => togglePavementFile(file.id)}
-                          className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
-                        />
-                        <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
-                          {file.filename}
-                        </span>
-                      </div>
-                      {deleteConfirm === file.id ? (
-                        <button
-                          onClick={(e) => handleDeletePavement(file.id, e)}
-                          className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
-                        >
-                          Confirm
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete file"
-                        >
-                          <Trash size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <LayerToggle
-              label="IRI Segments"
-              active={activeLayers.iri}
-              onToggle={() => toggleLayer('iri')}
-              color="bg-green-500"
-            />
-
-            {/* Individual IRI Files */}
-            {activeLayers.iri && iriFiles.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {iriFiles.map(file => (
-                  <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={file.visible}
-                          onChange={() => toggleIriFile(file.id)}
-                          className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
-                        />
-                        <span className="text-xs font-medium text-gray-700 truncate w-20" title={file.filename}>
-                          {file.filename}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/* Segment Length Badge - Click to Edit */}
-                        <button
-                          onClick={() => { setEditingSegmentFile(file.id); setEditSegmentLength(file.segmentLength || 100); }}
-                          className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded hover:bg-green-200 transition-colors"
-                          title="Click to change segment length"
-                          disabled={isRecalculating}
-                        >
-                          {file.segmentLength || 100}m
-                        </button>
+          <div className="mt-8">
+            <StreamlitHeader title="Data Layers" icon={Layers} />
+            <div className="bg-white p-3 rounded border border-gray-200">
+              <LayerToggle
+                label="Vehicles"
+                active={activeLayers.vehicles}
+                onToggle={() => toggleLayer('vehicles')}
+                color="bg-blue-500"
+              />
+              {/* Individual Vehicle Files */}
+              {activeLayers.vehicles && vehicleFiles.length > 0 && (
+                <div className="mt-2 space-y-2 mb-4">
+                  {vehicleFiles.map(file => (
+                    <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={file.visible}
+                            onChange={() => toggleVehicleFile(file.id)}
+                            className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
+                          />
+                          <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
+                            {file.filename}
+                          </span>
+                        </div>
                         {deleteConfirm === file.id ? (
                           <button
-                            onClick={(e) => handleDeleteIri(file.id, e)}
+                            onClick={(e) => handleDeleteVehicle(file.id, e)}
                             className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
                           >
                             Confirm
@@ -1003,59 +909,207 @@ const Sidebar = () => {
                         )}
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
 
-                    {/* Per-file Segment Length Editor */}
-                    {editingSegmentFile === file.id && (
-                      <div className="bg-green-50 border border-green-200 rounded p-2 mb-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-medium text-gray-700">Segment Length</span>
-                          <button onClick={() => setEditingSegmentFile(null)} className="text-gray-400 hover:text-gray-600">
-                            <X size={12} />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] text-gray-500">25m</span>
+              <LayerToggle
+                label="Potholes"
+                active={activeLayers.potholes}
+                onToggle={() => toggleLayer('potholes')}
+                color="bg-red-500"
+              />
+
+              {/* Individual Pothole Files */}
+              {activeLayers.potholes && potholeFiles.length > 0 && (
+                <div className="mt-2 space-y-2 mb-4">
+                  {potholeFiles.map(file => (
+                    <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center min-w-0">
                           <input
-                            type="range"
-                            min="25"
-                            max="500"
-                            step="25"
-                            value={editSegmentLength}
-                            onChange={(e) => setEditSegmentLength(parseInt(e.target.value, 10))}
-                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
-                            disabled={isRecalculating}
+                            type="checkbox"
+                            checked={file.visible}
+                            onChange={() => togglePotholeFile(file.id)}
+                            className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
                           />
-                          <span className="text-[9px] text-gray-500">500m</span>
+                          <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
+                            {file.filename}
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs font-bold text-green-600">{editSegmentLength}m</span>
+                        {deleteConfirm === file.id ? (
                           <button
-                            onClick={() => recalculateSingleIri(file.id, editSegmentLength)}
-                            disabled={isRecalculating}
-                            className="bg-green-500 text-white text-[10px] px-2 py-1 rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={(e) => handleDeletePothole(file.id, e)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
                           >
-                            {isRecalculating ? 'Processing...' : 'Apply'}
+                            Confirm
                           </button>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Delete file"
+                          >
+                            <Trash size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <LayerToggle
+                label="Pavement"
+                active={activeLayers.pavement}
+                onToggle={() => toggleLayer('pavement')}
+                color="bg-gray-500"
+              />
+
+              {/* Individual Pavement Files */}
+              {activeLayers.pavement && pavementFiles.length > 0 && (
+                <div className="mt-2 space-y-2 mb-4">
+                  {pavementFiles.map(file => (
+                    <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={file.visible}
+                            onChange={() => togglePavementFile(file.id)}
+                            className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
+                          />
+                          <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
+                            {file.filename}
+                          </span>
+                        </div>
+                        {deleteConfirm === file.id ? (
+                          <button
+                            onClick={(e) => handleDeletePavement(file.id, e)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                          >
+                            Confirm
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Delete file"
+                          >
+                            <Trash size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <LayerToggle
+                label="IRI Segments"
+                active={activeLayers.iri}
+                onToggle={() => toggleLayer('iri')}
+                color="bg-green-500"
+              />
+
+              {/* Individual IRI Files */}
+              {activeLayers.iri && iriFiles.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {iriFiles.map(file => (
+                    <div key={file.id} className="ml-4 pl-2 border-l-2 border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={file.visible}
+                            onChange={() => toggleIriFile(file.id)}
+                            className="h-3 w-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
+                          />
+                          <span className="text-xs font-medium text-gray-700 truncate w-20" title={file.filename}>
+                            {file.filename}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {/* Segment Length Badge - Click to Edit */}
+                          <button
+                            onClick={() => { setEditingSegmentFile(file.id); setEditSegmentLength(file.segmentLength || 100); }}
+                            className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded hover:bg-green-200 transition-colors"
+                            title="Click to change segment length"
+                            disabled={isRecalculating}
+                          >
+                            {file.segmentLength || 100}m
+                          </button>
+                          {deleteConfirm === file.id ? (
+                            <button
+                              onClick={(e) => handleDeleteIri(file.id, e)}
+                              className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                            >
+                              Confirm
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
+                              className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                              title="Delete file"
+                            >
+                              <Trash size={12} />
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
 
-                    <div className="grid grid-cols-2 gap-1 text-[10px] text-gray-500">
-                      <div>Avg IRI: <span className="font-semibold">{file.stats.averageIri.toFixed(2)}</span></div>
-                      <div>Max IRI: <span className="font-semibold">{file.stats.maxIri.toFixed(2)}</span></div>
-                      <div>Dist: <span className="font-semibold">{(file.stats.totalDistance / 1000).toFixed(2)}km</span></div>
-                      <div>Speed: <span className="font-semibold">{file.stats.avgSpeed.toFixed(1)}m/s</span></div>
+                      {/* Per-file Segment Length Editor */}
+                      {editingSegmentFile === file.id && (
+                        <div className="bg-green-50 border border-green-200 rounded p-2 mb-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-medium text-gray-700">Segment Length</span>
+                            <button onClick={() => setEditingSegmentFile(null)} className="text-gray-400 hover:text-gray-600">
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-gray-500">25m</span>
+                            <input
+                              type="range"
+                              min="25"
+                              max="500"
+                              step="25"
+                              value={editSegmentLength}
+                              onChange={(e) => setEditSegmentLength(parseInt(e.target.value, 10))}
+                              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                              disabled={isRecalculating}
+                            />
+                            <span className="text-[9px] text-gray-500">500m</span>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs font-bold text-green-600">{editSegmentLength}m</span>
+                            <button
+                              onClick={() => recalculateSingleIri(file.id, editSegmentLength)}
+                              disabled={isRecalculating}
+                              className="bg-green-500 text-white text-[10px] px-2 py-1 rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isRecalculating ? 'Processing...' : 'Apply'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-1 text-[10px] text-gray-500">
+                        <div>Avg IRI: <span className="font-semibold">{file.stats.averageIri.toFixed(2)}</span></div>
+                        <div>Max IRI: <span className="font-semibold">{file.stats.maxIri.toFixed(2)}</span></div>
+                        <div>Dist: <span className="font-semibold">{(file.stats.totalDistance / 1000).toFixed(2)}km</span></div>
+                        <div>Speed: <span className="font-semibold">{file.stats.avgSpeed.toFixed(1)}m/s</span></div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Global segment length slider removed - now using per-file editing */}
+              {/* Global segment length slider removed - now using per-file editing */}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

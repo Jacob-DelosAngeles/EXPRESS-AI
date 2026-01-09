@@ -6,7 +6,10 @@ import {
     LogOut,
     Shield,
     User,
-    ChevronDown
+    ChevronDown,
+    Activity,
+    LayoutDashboard,
+    Home
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
@@ -83,6 +86,33 @@ const Layout = () => {
                     {/* Dropdown Menu */}
                     {dropdownOpen && (
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border border-gray-100 z-[2000]">
+                            <div className="md:hidden">
+                                <Link
+                                    to="/"
+                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                    onClick={() => setDropdownOpen(false)}
+                                >
+                                    <Home size={16} className="mr-2" />
+                                    Overview
+                                </Link>
+                                <Link
+                                    to="/app/dashboard"
+                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                    onClick={() => setDropdownOpen(false)}
+                                >
+                                    <LayoutDashboard size={16} className="mr-2" />
+                                    Dashboard
+                                </Link>
+                                <Link
+                                    to="/app/analytics"
+                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                    onClick={() => setDropdownOpen(false)}
+                                >
+                                    <Activity size={16} className="mr-2" />
+                                    Analytics
+                                </Link>
+                                <div className="border-t border-gray-100 my-1"></div>
+                            </div>
                             {user?.is_superuser && (
                                 <Link
                                     to="/admin"
