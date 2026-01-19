@@ -13,7 +13,9 @@ const useAppStore = create((set) => ({
     vehicles: true,
     potholes: true,
     pavement: true,
-    iri: true // Global toggle for all IRI files
+    iri: true, // Global toggle for all IRI files
+    showBudgetCalculator: false,
+    showCostHeatmap: false
   },
 
   // Map State

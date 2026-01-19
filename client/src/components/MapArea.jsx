@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, CircleMarker } from 'react-leaflet';
 import { Layers, X } from 'lucide-react';
 import useAppStore from '../store/useAppStore';
 import 'leaflet/dist/leaflet.css';
@@ -16,6 +16,88 @@ let DefaultIcon = L.icon({
     iconAnchor: [12, 41]
 });
 
+// --- VISUALIZATION COMPONENTS ---
+
+// 1. Budget Calculator Panel (Floating)
+const BudgetPanel = ({ potholes }) => {
+    // Calculate totals
+    const totalCost = potholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
+    const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+    const count = potholes.length;
+
+    // Format currency
+    const formatPHP = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
+
+    return (
+        <div className="absolute top-4 right-4 z-[1000] lg:top-4 lg:right-4 max-w-[220px]">
+            <div className="bg-white/90 backdrop-blur-md border border-white/20 shadow-xl rounded-xl p-3 w-full animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center justify-between mb-2 border-b border-gray-100 pb-1">
+                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Project Estimate</h3>
+                    <div className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</div>
+                </div>
+
+                <div className="mb-3">
+                    <div className="text-xs text-gray-500 mb-0.5">Total Repair Cost</div>
+                    <div className="text-lg font-bold text-gray-900 tracking-tight">
+                        {formatPHP(totalCost)}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-gray-50 p-2 rounded-lg text-center">
+                        <div className="text-gray-400 mb-0.5">Defects</div>
+                        <div className="font-semibold text-gray-700">{count}</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-lg text-center">
+                        <div className="text-gray-400 mb-0.5">Area</div>
+                        <div className="font-semibold text-gray-700">{totalArea.toFixed(2)} m²</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// 2. Cost Heatmap Layer (Visual)
+const CostHeatmapLayer = ({ potholes }) => {
+    // Render distinct markers as "blobs"
+    // Green = Low Cost (<1k), Orange = Med (<5k), Red = High (>5k)
+    return (
+        <>
+            {potholes.map((p, idx) => {
+                const cost = p.repair_cost || 0;
+                let color = '#22c55e'; // Green
+                let radius = 20;       // Base Size
+
+                if (cost > 5000) {
+                    color = '#ef4444'; // Red
+                    radius = 40;       // Bigger for expensive
+                } else if (cost > 1000) {
+                    color = '#f97316'; // Orange
+                    radius = 30;
+                }
+
+                return (
+                    <CircleMarker
+                        key={`heat-${idx}`}
+                        center={[p.lat, p.lon]}
+                        radius={radius}
+                        pathOptions={{
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.2,
+                            stroke: false,
+                            className: 'blur-sm' // Tailwin blur effect via CSS? Might need inline style if CSS module
+                        }}
+                    >
+                        {/* No Popup for heatmap, it's visual only */}
+                    </CircleMarker>
+                )
+            })}
+        </>
+    );
+};
+
 // Red marker icon for potholes
 const RedIcon = L.icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
@@ -29,6 +111,34 @@ const RedIcon = L.icon({
     iconAnchor: [12, 41],
     popupAnchor: [0, -41]
 });
+
+// Helper to create Severe/Cost Icons
+const createSeverityIcon = (cost) => {
+    let color = '#ef4444'; // Red (Default High)
+    let stroke = '#991b1b';
+
+    // Logic: Yellow (< 1k), Orange (1k-5k), Red (> 5k)
+    if (cost < 1000) {
+        color = '#eab308'; // Yellow-500
+        stroke = '#ca8a04'; // Yellow-700
+    } else if (cost <= 5000) {
+        color = '#f97316'; // Orange-500
+        stroke = '#c2410c'; // Orange-700
+    }
+
+    return L.icon({
+        iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
+                <path fill="${color}" stroke="${stroke}" stroke-width="1" d="M12.5 0C5.6 0 0 5.6 0 12.5c0 8.4 12.5 28.5 12.5 28.5S25 20.9 25 12.5C25 5.6 19.4 0 12.5 0z"/>
+                <circle cx="12.5" cy="12.5" r="6" fill="white"/>
+            </svg>
+        `),
+        shadowUrl: iconShadow,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [0, -41]
+    });
+};
 
 // Custom Icons for Vehicles
 // Custom Icons for Vehicles using Tailwind and Emojis
@@ -212,7 +322,17 @@ const MapArea = () => {
                         </Polyline>
                     ) : null
                 ))}
+                {/* 3. Cost Heatmap Layer */}
+                {activeLayers.showCostHeatmap && safePotholes.length > 0 && (
+                    <CostHeatmapLayer potholes={safePotholes} />
+                )}
+
             </MapContainer>
+
+            {/* 4. Budget Calculator Overlay */}
+            {activeLayers.showBudgetCalculator && safePotholes.length > 0 && (
+                <BudgetPanel potholes={safePotholes} />
+            )}
 
             {/* Legend Overlay */}
             {/* Mobile Toggle Button */}

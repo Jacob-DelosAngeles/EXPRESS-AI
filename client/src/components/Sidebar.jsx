@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, AlertCircle, CheckCircle, Map as MapIcon, Car, AlertTriangle, Activity, Layers, Trash, X, Menu } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle, Map as MapIcon, Car, AlertTriangle, Activity, Layers, Trash, X, Menu, Calculator, LayoutList } from 'lucide-react';
 import { fileService } from '../services/api';
 import useAppStore from '../store/useAppStore';
 // ... (imports)
@@ -254,6 +254,7 @@ const LayerToggle = ({ label, active, onToggle, color }) => (
 const Sidebar = () => {
   const {
     setVehicles, setPotholes, setPavement,
+    potholes,
     iriFiles, setIriFiles, addIriFile, toggleIriFile, removeIriFile, clearIriFiles,
     potholeFiles, setPotholeFiles, addPotholeFile, togglePotholeFile, removePotholeFile, clearPotholeFiles,
     vehicleFiles, setVehicleFiles, addVehicleFile, toggleVehicleFile, removeVehicleFile, clearVehicleFiles,
@@ -864,6 +865,57 @@ const Sidebar = () => {
             icon={MapIcon}
             onUpload={handlePavementUpload}
           />
+
+
+          {/* Cost Analysis Tools */}
+          <div className="mt-8">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Calculator size={14} /> Cost Analysis
+            </h3>
+            <div className="space-y-2">
+
+              {/* Budget Panel Toggle */}
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-md ${activeLayers.showBudgetCalculator ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                    <LayoutList size={18} />
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${potholes.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>Budget Panel</div>
+                    <div className="text-[10px] text-gray-500">REAL-TIME ESTIMATE</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleLayer('showBudgetCalculator')}
+                  disabled={potholes.length === 0}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${activeLayers.showBudgetCalculator ? 'bg-blue-600' : 'bg-gray-200'} ${potholes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${activeLayers.showBudgetCalculator ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Heatmap Toggle */}
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-md ${activeLayers.showCostHeatmap ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
+                    <Activity size={18} />
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${potholes.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>Cost Heatmap</div>
+                    <div className="text-[10px] text-gray-500">DENSITY LAYER</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleLayer('showCostHeatmap')}
+                  disabled={potholes.length === 0}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${activeLayers.showCostHeatmap ? 'bg-orange-500' : 'bg-gray-200'} ${potholes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${activeLayers.showCostHeatmap ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+            </div>
+          </div>
 
           <div className="mt-8">
             <StreamlitHeader title="Data Layers" icon={Layers} />

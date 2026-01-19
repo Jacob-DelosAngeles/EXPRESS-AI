@@ -83,12 +83,22 @@ async def process_pavement_data(
         if 'latitude' not in df.columns or 'longitude' not in df.columns:
              raise ValueError("Missing latitude/longitude columns")
 
-        # Color Map
-        color_map = {
-            'soil': '#8B4513',      # Brown
-            'gravel': '#FFFFFF',    # White
-            'flexible': '#2F2F2F',  # Dark gray
-            'rigid': '#D3D3D3'      # Whitish gray (light gray)
+        # Smart Type Normalization (Accept multiple naming conventions)
+        TYPE_NORMALIZE = {
+            'flexible': 'Asphalt', 'asphalt': 'Asphalt',
+            'rigid': 'Concrete', 'concrete': 'Concrete',
+            'gravel': 'Gravel',
+            'soil': 'Soil',
+            'unpaved': 'Unpaved'
+        }
+        
+        # Color Map for Map Lines
+        COLOR_MAP = {
+            'Asphalt': '#2F2F2F',   # Dark Grey
+            'Concrete': '#FFFFFF',  # White
+            'Gravel': '#D3D3D3',    # Light Grey
+            'Soil': '#8B4513',      # Brown
+            'Unpaved': '#000000'    # Black
         }
         
         segments = []
@@ -109,7 +119,9 @@ async def process_pavement_data(
         current_end_time = None
 
         for _, row in df.iterrows():
-            p_type = row['type']
+            # Normalize type name
+            raw_type = str(row['type']).lower()
+            p_type = TYPE_NORMALIZE.get(raw_type, raw_type.title())
             lat = float(row['latitude'])
             lon = float(row['longitude'])
             
@@ -132,7 +144,7 @@ async def process_pavement_data(
                     segments.append({
                         "points": current_points,
                         "type": current_type,
-                        "color": color_map.get(current_type, '#808080'),
+                        "color": COLOR_MAP.get(current_type, '#808080'),
                         "start_time": str(segment_start_time) if segment_start_time else None,
                         "end_time": str(current_end_time) if current_end_time else None
                     })
@@ -147,7 +159,7 @@ async def process_pavement_data(
             segments.append({
                 "points": current_points,
                 "type": current_type,
-                "color": color_map.get(current_type, '#808080'),
+                "color": COLOR_MAP.get(current_type, '#808080'),
                 "start_time": str(segment_start_time) if segment_start_time else None,
                 "end_time": str(current_end_time) if current_end_time else None
             })

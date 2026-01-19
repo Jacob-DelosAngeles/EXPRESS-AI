@@ -24,8 +24,13 @@ from core import security  # Keep for backwards compatibility
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
+from utils.calibration_utils import RoadCalibrator
+from utils.cost_calculator import CostCalculator
+
 router = APIRouter()
 file_handler = FileHandler()
+calibrator = RoadCalibrator()
+
 
 @router.get("/process/{filename}", response_model=Dict[str, Any])
 async def process_pothole_data(
@@ -151,29 +156,62 @@ async def process_pothole_data(
                 # Generate URL using the storage service (generates presigned URL for R2)
                 image_url = file_handler.storage.get_file_url(storage_path)
                 
-                # Create popup HTML (mirrored from streamlit_app.py)
+                # Estimate Area & Cost
+                area_m2 = 0.0
+                
+                # 1. Try to get precise AREA from Notebook (Mask-based)
+                if 'area_m2' in row and not pd.isna(row['area_m2']):
+                    area_m2 = float(row['area_m2'])
+                # 2. Fallback to Bbox Estimation (if missing)
+                else:
+                    width_px = row.get('box_width', 100) 
+                    height_px = row.get('box_height', 100) 
+                    center_y = row.get('box_center_y', 540) # Default to center of 1080p
+                    
+                    area_m2 = calibrator.estimate_area_from_bbox(
+                        float(width_px), float(height_px), float(center_y)
+                    )
+                
+                # Get Pavement Type (Notebook Classification)
+                pavement_type = 'asphalt' # Default
+                if 'pavement_type' in row and not pd.isna(row['pavement_type']):
+                    pavement_type = str(row['pavement_type']).lower()
+                
+                cost_data = CostCalculator.calculate_repair_cost(
+                    defect_type='pothole',
+                    pavement_type=pavement_type,
+                    area_m2=area_m2
+                )
+
+                # Create popup HTML (Enhanced with engineering data)
                 popup_html = f"""
                 <div style="text-align: center; min-width: 250px; font-family: Arial, sans-serif;">
-                    <h4 style="margin: 0 0 10px 0; color: #2c3e50;">🚧 Pothole Detection</h4>
+                    <h4 style="margin: 0 0 10px 0; color: #dc2626; border-bottom: 2px solid #fee2e2; padding-bottom: 5px;">🚧 Pothole Detection</h4>
                     <p style="margin: 5px 0;"><strong>Confidence:</strong> {confidence:.2%}</p>
-                    <p style="margin: 5px 0; font-size: 12px; color: #666;">{image_path}</p>
                     
                     <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
                         <a href="{image_url}" target="_blank">
                             <img src="{image_url}" 
-                                 style="width: 200px; height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer;" 
+                                 style="width: 200px; height: auto; border-radius: 6px; cursor: pointer;" 
                                  onerror="this.style.display='none'; this.parentElement.nextElementSibling.style.display='block';"
-                                 alt="Pothole Detection Image">
+                                 alt="Pothole Image">
                         </a>
-                        <div style="display: none; color: #e74c3c; font-size: 12px; padding: 10px;">
+                         <div style="display: none; color: #e74c3c; font-size: 12px; padding: 10px;">
                             ❌ Image failed to load<br>
                             <a href="{image_url}" target="_blank" style="color: #007bff; text-decoration: none; font-size: 10px;">Click here to view image</a>
                         </div>
                     </div>
-                    
-                    <p style="margin: 5px 0; font-size: 10px; color: #999;">
-                        <a href="{image_url}" target="_blank" style="color: #007bff; text-decoration: none;">View full image in new tab</a>
-                    </p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; text-align: left;">
+                         <div style="background: #f9fafb; padding: 4px; border-radius: 4px;">
+                            <div style="color: #6b7280; font-size: 10px; text-transform: uppercase;">Est. Area</div>
+                            <div style="font-weight: bold; color: #1f2937;">{area_m2} m²</div>
+                        </div>
+                        <div style="background: #fffbe6; padding: 4px; border-radius: 4px; border: 1px solid #fef3c7;">
+                            <div style="color: #b45309; font-size: 10px; text-transform: uppercase;">Repair Cost</div>
+                            <div style="font-weight: bold; color: #92400e;">₱{cost_data['total_cost_php']:,}</div>
+                        </div>
+                    </div>
                 </div>
                 """
                 
@@ -183,6 +221,9 @@ async def process_pothole_data(
                     'popup_html': popup_html,
                     'tooltip': f"Pothole Detection ({confidence:.1%})",
                     'confidence': confidence,
+                    'area_m2': area_m2,
+                    'repair_cost': cost_data['total_cost_php'],
+                    'severity': cost_data['severity'],
                     'image_path': image_path,
                     'image_url': image_url,
                     'storage_path': storage_path,  # Store for URL regeneration from cache
