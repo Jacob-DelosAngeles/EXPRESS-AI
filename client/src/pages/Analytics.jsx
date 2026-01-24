@@ -4,10 +4,55 @@ import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar, Filter } from 'lucide-react';
+import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar, Filter, Construction } from 'lucide-react';
 import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';
+import DiagnosisCard from '../components/DiagnosisCard';
+
+// Helper for Pothole Diagnosis Logic (Mirrors Backend)
+const getPotholeDiagnosis = (count, density) => {
+    const cause = "Trapped moisture and fatigue due to traffic";
+    const preRehabChecklist = [
+        "Check for possible flooding",
+        "Identify traffic characteristics",
+        "Evaluate concentration every 100m"
+    ];
+
+    // Using Count > 30 as threshold based on current dataset calibration
+    // In future, this should strictly use density %
+    if (count > 30) {
+        return {
+            status: 'CRITICAL',
+            color: 'red',
+            action: 'Major Rehabilitation',
+            method: 'Mill pavement surface to remove all potholes, then reconstruct surface.',
+            insight: `Concentration exceeds 30%. Structural failure likely.`,
+            cause: cause,
+            pre_rehab_assessment: preRehabChecklist
+        };
+    } else if (count > 10) {
+        return {
+            status: 'WARNING',
+            color: 'yellow',
+            action: 'Conditional Patching',
+            method: 'Apply patching. Verify if area is prone to flooding.',
+            insight: `Concentration between 10-30%. Drainage check recommended.`,
+            cause: cause,
+            pre_rehab_assessment: preRehabChecklist
+        };
+    } else {
+        return {
+            status: 'GOOD',
+            color: 'green',
+            action: 'Patching',
+            method: 'Apply standard patching.',
+            insight: `Low concentration (<10%). Routine maintenance.`,
+            cause: cause,
+            pre_rehab_assessment: preRehabChecklist
+        };
+    }
+};
 
 const Analytics = () => {
     const [activeTab, setActiveTab] = useState('iri');
@@ -164,6 +209,9 @@ const Analytics = () => {
                 imagePath: p.image_path
             }));
 
+        // Calculate total repair cost
+        const totalRepairCost = allPotholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
+
         return {
             totalCount,
             avgConfidence: (avgConfidence * 100).toFixed(1),
@@ -172,7 +220,8 @@ const Analytics = () => {
             confidenceDistribution,
             galleryImages,
             minConfidence: (Math.min(...allPotholes.map(p => p.confidence)) * 100).toFixed(1),
-            maxConfidence: (Math.max(...allPotholes.map(p => p.confidence)) * 100).toFixed(1)
+            maxConfidence: (Math.max(...allPotholes.map(p => p.confidence)) * 100).toFixed(1),
+            totalRepairCost
         };
     }, [potholeFiles]);
 
@@ -264,8 +313,9 @@ const Analytics = () => {
     const tabs = [
         { id: 'iri', label: 'IRI Analysis', icon: Activity },
         { id: 'pothole', label: 'Pothole Detection', icon: AlertTriangle },
-        { id: 'traffic', label: 'Traffic Volume', icon: Truck },
         { id: 'pavement', label: 'Road Type', icon: MapIcon },
+        { id: 'traffic', label: 'Traffic Volume', icon: Truck },
+        { id: 'rehab', label: 'Road Rehabilitation', icon: Construction },
     ];
 
     return (
@@ -580,6 +630,30 @@ const Analytics = () => {
                             </div>
                         )}
 
+                        {/* Road Rehabilitation Section */}
+                        {activeTab === 'rehab' && (
+                            <div className="space-y-6">
+                                {potholeAnalytics ? (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <KpiCard title="Pothole Density" value={`${((potholeAnalytics.totalCount / 100) * 10).toFixed(1)}%`} trend="" status="neutral" />
+                                            <KpiCard title="Avg IRI" value={iriAnalytics?.stats?.avgIri || 'N/A'} unit="m/km" trend="" status="neutral" />
+                                            <KpiCard title="Estimated Cost" value={`₱${potholeAnalytics.totalRepairCost.toLocaleString()}`} trend="" status="neutral" />
+                                        </div>
+                                        <DiagnosisCard
+                                            diagnosis={getPotholeDiagnosis(potholeAnalytics.totalCount)}
+                                            metrics={{
+                                                density: (potholeAnalytics.totalCount / 100) * 10,
+                                                iri: parseFloat(iriAnalytics?.stats?.avgIri) || 0
+                                            }}
+                                        />
+                                    </>
+                                ) : (
+                                    <EmptyState message="No Pothole data available. Please upload detection data to generate rehabilitation recommendations." />
+                                )}
+                            </div>
+                        )}
+
                         {/* Traffic Section */}
                         {activeTab === 'traffic' && (
                             <div className="space-y-6">
@@ -682,7 +756,9 @@ const Analytics = () => {
 };
 
 const KpiCard = ({ title, value, unit, trend, status }) => {
-    const colorClass = status === 'success' ? 'text-green-600' : status === 'warning' ? 'text-yellow-600' : 'text-red-600';
+    const colorClass = status === 'neutral' ? 'text-gray-600' :
+        status === 'success' ? 'text-green-600' :
+            status === 'warning' ? 'text-yellow-600' : 'text-red-600';
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">

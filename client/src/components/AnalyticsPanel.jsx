@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-
+import DiagnosisCard from './DiagnosisCard';
 const AnalyticsPanel = () => {
-  const { vehicleData, potholeData, iriData, iriResults, isComputingIRI } = useAppStore();
+  const { vehicleData, potholeData, potholes, iriData, iriResults, isComputingIRI } = useAppStore();
 
   // Process IRI data for analytics
   const processIRIData = () => {
@@ -200,8 +200,8 @@ const AnalyticsPanel = () => {
               {iriAnalytics.qualityDistribution.map((item, index) => (
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-4 h-4 rounded-full" 
+                    <div
+                      className="w-4 h-4 rounded-full"
                       style={{ backgroundColor: item.color }}
                     ></div>
                     <span className="text-sm text-gray-700">{item.name}</span>
@@ -212,7 +212,7 @@ const AnalyticsPanel = () => {
                 </div>
               ))}
             </div>
-            
+
             {/* IRI Chart */}
             {iriAnalytics.iriChartData.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow-card">
@@ -222,7 +222,7 @@ const AnalyticsPanel = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="distance" label={{ value: 'Distance (100m segments)', position: 'insideBottom', offset: -5 }} />
                     <YAxis label={{ value: 'IRI (m/km)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value, name) => [value.toFixed(2), name === 'iri' ? 'IRI' : 'Speed']}
                       labelFormatter={(value) => `Distance: ${value * 100}m`}
                     />
@@ -235,6 +235,63 @@ const AnalyticsPanel = () => {
         ) : (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
             <p className="text-gray-500">No IRI data available. Upload sensor data to compute IRI values.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 🚜 Rehabilitation Strategy (NEW) */}
+      <div>
+        <h3 className="section-header">
+          🚜 Rehabilitation Strategy
+        </h3>
+        {potholes && potholes.length > 0 ? (
+          <DiagnosisCard
+            diagnosis={{
+              status: (() => {
+                // Calculate density from potholes summary if available
+                const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+                const density = totalArea > 0 ? Math.min((totalArea / 175) * 100, 100) : 0; // Assume 50m x 3.5m = 175m² road
+                if (density > 30) return 'CRITICAL';
+                if (density >= 10) return 'WARNING';
+                return 'GOOD';
+              })(),
+              color: (() => {
+                const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+                const density = totalArea > 0 ? Math.min((totalArea / 175) * 100, 100) : 0;
+                if (density > 30) return 'red';
+                if (density >= 10) return 'yellow';
+                return 'green';
+              })(),
+              action: (() => {
+                const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+                const density = totalArea > 0 ? Math.min((totalArea / 175) * 100, 100) : 0;
+                if (density > 30) return 'Major Rehabilitation';
+                if (density >= 10) return 'Conditional Patching';
+                return 'Patching';
+              })(),
+              method: (() => {
+                const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+                const density = totalArea > 0 ? Math.min((totalArea / 175) * 100, 100) : 0;
+                if (density > 30) return 'Mill pavement surface to remove all potholes, then reconstruct.';
+                if (density >= 10) return 'Apply patching. Verify if area is prone to flooding.';
+                return 'Apply standard patching.';
+              })(),
+              insight: (() => {
+                const totalCost = potholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
+                return `Based on ${potholes.length} detected defects with estimated repair cost of ₱${totalCost.toLocaleString()}.`;
+              })()
+            }}
+            metrics={{
+              density: (() => {
+                const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
+                return Math.min((totalArea / 175) * 100, 100);
+              })(),
+              iri: iriAnalytics.averageIRI
+            }}
+          />
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+            <p className="text-gray-500">No pothole data available. Upload detection data to generate rehabilitation recommendations.</p>
           </div>
         )}
       </div>

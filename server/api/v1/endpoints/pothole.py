@@ -26,6 +26,7 @@ from typing import List, Dict, Any, Optional
 
 from utils.calibration_utils import RoadCalibrator
 from utils.cost_calculator import CostCalculator
+from utils.engineering_expert import EngineeringExpert
 
 router = APIRouter()
 file_handler = FileHandler()
@@ -119,6 +120,8 @@ async def process_pothole_data(
         image_map = {rec.original_filename: rec.storage_path for rec in image_records}
         
         markers_data = []
+        total_defect_area_m2 = 0.0
+        valid_coords = [] # Track coordinates for road length calc
         
         for idx, row in df.iterrows():
             try:
@@ -127,6 +130,9 @@ async def process_pothole_data(
                 
                 if math.isnan(lat) or math.isnan(lon):
                     continue
+                
+                # Capture coordinate for distance calculation
+                valid_coords.append((lat, lon))
                     
                 image_path = row['image_path'] # e.g. "frame_11030.jpg"
                 confidence = float(row['confidence_score'])
@@ -182,6 +188,9 @@ async def process_pothole_data(
                     pavement_type=pavement_type,
                     area_m2=area_m2
                 )
+                
+                # Accumulate Total Area for Density Calculation
+                total_defect_area_m2 += area_m2
 
                 # Create popup HTML (Enhanced with engineering data)
                 popup_html = f"""
@@ -240,6 +249,50 @@ async def process_pothole_data(
             "data": markers_data,
             "count": len(markers_data)
         }
+        
+        # ============================================
+        # 3. ENGINEERING DIAGNOSIS (Density Calculation)
+        # ============================================
+        try:
+            # 3a. Calculate Total Road Length (Accumulated Haversine)
+            road_len_m = 0.0
+            if len(valid_coords) >= 2:
+                for i in range(len(valid_coords) - 1):
+                    p1 = valid_coords[i]
+                    p2 = valid_coords[i+1]
+                    dist = calibrator.calculate_distance_meters(p1[0], p1[1], p2[0], p2[1])
+                    # Filter out crazy jumps (GPS glitches > 100m per frame)
+                    if dist < 100.0:
+                        road_len_m += dist
+            
+            # Fallback if static image or single point (assume 50m segment)
+            if road_len_m < 5.0:
+                road_len_m = 50.0
+
+            # 3b. Road Area = Length * Width (Standard 3.5m lane)
+            road_width_m = 3.5
+            total_road_area_m2 = road_len_m * road_width_m
+            
+            # 3c. Calculate Density %
+            density_percent = 0.0
+            if total_road_area_m2 > 0:
+                density_percent = (total_defect_area_m2 / total_road_area_m2) * 100.0
+            
+            # 3d. Get Expert Diagnosis
+            expert_diagnosis = EngineeringExpert.diagnose('pothole', density_percent)
+            
+            # Add to response
+            response_data['summary'] = {
+                'total_defect_area_m2': round(total_defect_area_m2, 2),
+                'total_road_area_m2': round(total_road_area_m2, 2),
+                'road_length_m': round(road_len_m, 2),
+                'density_percent': round(density_percent, 2),
+                'diagnosis': expert_diagnosis
+            }
+        except Exception as diag_err:
+            logger.error(f"Diagnosis failed: {diag_err}")
+            # Non-blocking, just omit summary
+
         
         # ============================================
         # CACHE STORE - Save processed data for future requests
