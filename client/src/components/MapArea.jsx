@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, CircleMarker } from 'react-leaflet';
+import React, { useEffect, useState, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, useMapEvents, CircleMarker } from 'react-leaflet';
 import { Layers, X } from 'lucide-react';
 import useAppStore from '../store/useAppStore';
+import { isPointInPolygon } from '../utils/geo';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -19,7 +20,7 @@ let DefaultIcon = L.icon({
 // --- VISUALIZATION COMPONENTS ---
 
 // 1. Budget Calculator Panel (Floating)
-const BudgetPanel = ({ potholes }) => {
+const BudgetPanel = ({ potholes, isSelectingROI, setIsSelectingROI, handleFinishROI, handleClearROI, hasROI, tempPointsCount }) => {
     // Calculate totals
     const totalCost = potholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
     const totalArea = potholes.reduce((sum, p) => sum + (p.area_m2 || 0), 0);
@@ -29,7 +30,7 @@ const BudgetPanel = ({ potholes }) => {
     const formatPHP = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
 
     return (
-        <div className="absolute top-4 right-4 z-[1000] lg:top-4 lg:right-4 max-w-[220px]">
+        <div className="absolute top-4 right-4 z-[1000] lg:top-4 lg:right-4 max-w-[240px]">
             <div className="bg-white/90 backdrop-blur-md border border-white/20 shadow-xl rounded-xl p-3 w-full animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center justify-between mb-2 border-b border-gray-100 pb-1">
                     <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Project Estimate</h3>
@@ -43,7 +44,7 @@ const BudgetPanel = ({ potholes }) => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div className="bg-gray-50 p-2 rounded-lg text-center">
                         <div className="text-gray-400 mb-0.5">Defects</div>
                         <div className="font-semibold text-gray-700">{count}</div>
@@ -52,6 +53,40 @@ const BudgetPanel = ({ potholes }) => {
                         <div className="text-gray-400 mb-0.5">Area</div>
                         <div className="font-semibold text-gray-700">{totalArea.toFixed(2)} m²</div>
                     </div>
+                </div>
+
+                {/* Selection Tools Integration */}
+                <div className="pt-2 border-t border-gray-100">
+                    {!isSelectingROI && !hasROI ? (
+                        <button
+                            onClick={() => setIsSelectingROI(true)}
+                            className="w-full flex items-center justify-center gap-2 text-[11px] py-1.5 bg-gray-50 text-gray-600 rounded-lg font-bold hover:bg-gray-100 transition-colors border border-gray-200"
+                        >
+                            🎯 Lasso Analysis Area
+                        </button>
+                    ) : isSelectingROI ? (
+                        <div className="space-y-2">
+                            <button
+                                onClick={handleFinishROI}
+                                className="w-full text-[11px] py-1.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 animate-pulse shadow-sm"
+                            >
+                                ✅ Finish Selection ({tempPointsCount})
+                            </button>
+                            <button
+                                onClick={handleClearROI}
+                                className="w-full text-[11px] py-1.5 bg-white text-gray-400 border border-gray-200 rounded-lg font-semibold hover:bg-gray-50"
+                            >
+                                ❌ Cancel
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleClearROI}
+                            className="w-full text-[11px] py-1.5 bg-blue-50 text-blue-600 rounded-lg font-bold hover:bg-blue-100 transition-colors border border-blue-200"
+                        >
+                            🔄 Reset Analysis
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -64,7 +99,7 @@ const CostHeatmapLayer = ({ potholes }) => {
     // Green = Low Cost (<1k), Orange = Med (<5k), Red = High (>5k)
     return (
         <>
-            {potholes.map((p, idx) => {
+            {potholes.filter(p => !p.is_hidden).map((p, idx) => {
                 const cost = p.repair_cost || 0;
                 let color = '#22c55e'; // Green
                 let radius = 20;       // Base Size
@@ -87,11 +122,9 @@ const CostHeatmapLayer = ({ potholes }) => {
                             fillColor: color,
                             fillOpacity: 0.2,
                             stroke: false,
-                            className: 'blur-sm' // Tailwin blur effect via CSS? Might need inline style if CSS module
+                            className: 'blur-sm'
                         }}
-                    >
-                        {/* No Popup for heatmap, it's visual only */}
-                    </CircleMarker>
+                    />
                 )
             })}
         </>
@@ -179,11 +212,23 @@ const mapStyles = {
 };
 
 // Component to update map bounds based on data
-const MapUpdater = ({ data }) => {
+const MapUpdater = ({ data, isSelectingROI }) => {
     const map = useMap();
+    const { lastZoomedSignature, setLastZoomedSignature } = useAppStore();
 
     useEffect(() => {
+        // Skip auto-zoom if user is currently drawing an ROI
+        if (isSelectingROI) return;
+
         if (data && data.length > 0) {
+            // Create a signature based on unique Upload IDs rather than point count
+            // This ensures we ONLY re-zoom when a brand-new file/dataset is added
+            // but remain static when individual points are hidden or deleted.
+            const uniqueIds = [...new Set(data.map(d => d.upload_id || d.id || 'no-id'))].sort();
+            const dataSignature = uniqueIds.join('|');
+
+            if (lastZoomedSignature === dataSignature) return;
+
             const validPoints = data
                 .filter(d => d && typeof d.lat === 'number' && typeof d.lon === 'number')
                 .map(d => [d.lat, d.lon]);
@@ -192,28 +237,97 @@ const MapUpdater = ({ data }) => {
                 const bounds = L.latLngBounds(validPoints);
                 if (bounds.isValid()) {
                     map.fitBounds(bounds, { padding: [50, 50] });
+                    setLastZoomedSignature(dataSignature);
                 }
             }
         }
-    }, [data, map]);
+    }, [data, map, isSelectingROI]);
+
+    return null;
+};
+
+// Component to capture and save map view state
+const MapViewWatcher = () => {
+    const map = useMap();
+    const { setMapView } = useAppStore();
+
+    useMapEvents({
+        moveend: () => {
+            const center = map.getCenter();
+            setMapView([center.lat, center.lng], map.getZoom());
+        },
+        zoomend: () => {
+            const center = map.getCenter();
+            setMapView([center.lat, center.lng], map.getZoom());
+        }
+    });
 
     return null;
 };
 
 const MapArea = () => {
     const [isLegendOpen, setIsLegendOpen] = useState(false);
-    const { vehicles, potholes, pavement, iriFiles, activeLayers, mapStyle, setMapStyle } = useAppStore();
+    const [isSelectingROI, setIsSelectingROI] = useState(false);
+    const [tempROIPoints, setTempROIPoints] = useState([]);
+
+    const {
+        vehicles, potholes, pavement, iriFiles, activeLayers, mapStyle,
+        setMapStyle, roiPolygon, setRoiPolygon, clearRoiPolygon,
+        mapCenter, mapZoom
+    } = useAppStore();
 
     const currentStyle = mapStyles[mapStyle] || mapStyles.OpenStreetMap;
 
-    // Combine all points to calculate bounds
-    const safeVehicles = (vehicles || []).filter(v => v && typeof v.lat === 'number');
-    const safePotholes = (potholes || []).filter(p => p && typeof p.lat === 'number');
-    const safePavement = (pavement || []).flatMap(p => (p && p.points) ? p.points.map(pt => ({ lat: pt[0], lon: pt[1] })) : []);
-    const safeIri = (iriFiles || []).filter(f => f.visible).flatMap(f => (f.segments || []).filter(s => s && s.start_lat && s.start_lon).map(s => ({ lat: s.start_lat, lon: s.start_lon })));
+    // ROI CLICK HANDLER
+    const MapEvents = () => {
+        useMapEvents({
+            click(e) {
+                if (isSelectingROI) {
+                    const newPoint = [e.latlng.lat, e.latlng.lng];
+                    setTempROIPoints(prev => [...prev, newPoint]);
+                }
+            },
+        });
+        return null;
+    };
 
-    const allPoints = [...safeVehicles, ...safePotholes, ...safePavement, ...safeIri]
-        .filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && typeof p.lon === 'number' && !isNaN(p.lon));
+    const handleFinishROI = () => {
+        if (tempROIPoints.length >= 3) {
+            setRoiPolygon(tempROIPoints);
+        }
+        setIsSelectingROI(false);
+        setTempROIPoints([]);
+    };
+
+    const handleClearROI = () => {
+        clearRoiPolygon();
+        setTempROIPoints([]);
+        setIsSelectingROI(false);
+    };
+
+    // FILTERING LOGIC
+    // Memoized filters to prevent expensive recalculations on every pan/zoom
+    const filteredPotholes = useMemo(() => (potholes || []).filter(p => {
+        if (p.is_hidden) return false;
+        if (roiPolygon && !isPointInPolygon([p.lat, p.lon], roiPolygon)) return false;
+        return true;
+    }), [potholes, roiPolygon]);
+
+    const safeVehicles = useMemo(() => (vehicles || []).filter(v => v && typeof v.lat === 'number'), [vehicles]);
+    const safePotholes = filteredPotholes; // Alias for readability in BudgetPanel
+    const allPotholesForMap = useMemo(() => (potholes || []), [potholes]);
+
+    const safePavement = useMemo(() => (pavement || []).flatMap(p =>
+        (p && p.points) ? p.points.map(pt => ({ lat: pt[0], lon: pt[1] })) : []
+    ), [pavement]);
+
+    const safeIri = useMemo(() => (iriFiles || []).filter(f => f.visible).flatMap(f =>
+        (f.segments || []).filter(s => s && s.start_lat && s.start_lon).map(s => ({ lat: s.start_lat, lon: s.start_lon }))
+    ), [iriFiles]);
+
+    const allPoints = useMemo(() => [...safeVehicles, ...safePotholes, ...safePavement, ...safeIri]
+        .filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && typeof p.lon === 'number' && !isNaN(p.lon))
+        , [safeVehicles, safePotholes, safePavement, safeIri]);
 
     const getIriColor = (iri) => {
         if (iri <= 3) return '#16a34a'; // Green
@@ -235,8 +349,8 @@ const MapArea = () => {
     return (
         <div className="flex-1 h-full relative">
             <MapContainer
-                center={[14.1648, 121.2413]}
-                zoom={13}
+                center={mapCenter}
+                zoom={mapZoom}
                 style={{ height: '100%', width: '100%' }}
             >
                 <TileLayer
@@ -244,12 +358,33 @@ const MapArea = () => {
                     attribution={currentStyle.attribution}
                 />
 
-                {allPoints.length > 0 && <MapUpdater data={allPoints} />}
+                <MapEvents />
+                <MapViewWatcher />
+
+                {/* Always pass all points (including hidden) for stable bounds calculation */}
+                {allPotholesForMap.length > 0 && (
+                    <MapUpdater
+                        data={[...safeVehicles, ...allPotholesForMap, ...safePavement, ...safeIri]}
+                        isSelectingROI={isSelectingROI}
+                    />
+                )}
+
+                {/* ROI Visuals */}
+                {isSelectingROI && tempROIPoints.length > 0 && (
+                    <Polyline positions={tempROIPoints} color="#3b82f6" dashArray="5, 10" />
+                )}
+                {roiPolygon && (
+                    <Polyline positions={[...roiPolygon, roiPolygon[0]]} color="#2563eb" weight={3} />
+                )}
 
                 {/* IRI Segments */}
                 {activeLayers.iri && iriFiles.filter(f => f.visible).map(file => (
                     <React.Fragment key={file.id}>
-                        {file.segments.map((seg, idx) => {
+                        {file.segments.filter(seg => {
+                            if (!roiPolygon) return true;
+                            // ROI filtering for segments (check start point)
+                            return isPointInPolygon([seg.start_lat, seg.start_lon], roiPolygon);
+                        }).map((seg, idx) => {
                             if (seg.start_lat && seg.start_lon && seg.end_lat && seg.end_lon) {
                                 return (
                                     <Polyline
@@ -282,7 +417,10 @@ const MapArea = () => {
                 ))}
 
                 {/* Vehicles */}
-                {activeLayers.vehicles && vehicles.map((v, idx) => (
+                {activeLayers.vehicles && vehicles.filter(v => {
+                    if (!roiPolygon) return true;
+                    return v && isPointInPolygon([v.lat, v.lon], roiPolygon);
+                }).map((v, idx) => (
                     (v && typeof v.lat === 'number' && typeof v.lon === 'number') ? (
                         <Marker key={`v-${idx}`} position={[v.lat, v.lon]} icon={getVehicleIcon(v.type)}>
                             <Popup>
@@ -298,17 +436,34 @@ const MapArea = () => {
 
 
                 {/* Potholes */}
-                {activeLayers.potholes && potholes.map((p, idx) => (
-                    <Marker key={`p-${idx}`} position={[p.lat, p.lon]} icon={RedIcon}>
+                {activeLayers.potholes && potholes.filter(p => {
+                    // Marker Visibility Logic:
+                    // 1. If hidden via button AND showHidden is OFF -> disappear
+                    // 2. If ROI active and outside -> disappear
+                    if (p.is_hidden && !activeLayers.showHidden) return false;
+                    if (roiPolygon && !isPointInPolygon([p.lat, p.lon], roiPolygon)) return false;
+                    return true;
+                }).map((p, idx) => (
+                    <Marker
+                        key={`p-${idx}`}
+                        position={[p.lat, p.lon]}
+                        icon={RedIcon}
+                        opacity={p.is_hidden ? 0.3 : 1}
+                    >
                         <Popup maxWidth={300}>
                             <PotholePopup pothole={p} />
                         </Popup>
-                        <Tooltip>{p.tooltip}</Tooltip>
+                        <Tooltip>{p.tooltip}{p.is_hidden ? ' (HIDDEN)' : ''}</Tooltip>
                     </Marker>
                 ))}
 
                 {/* Pavement */}
-                {activeLayers.pavement && pavement.map((p, idx) => (
+                {activeLayers.pavement && pavement.filter(p => {
+                    if (!roiPolygon) return true;
+                    // Check if first point of pavement line is in ROI
+                    const firstPoint = p.points && p.points[0];
+                    return firstPoint ? isPointInPolygon(firstPoint, roiPolygon) : true;
+                }).map((p, idx) => (
                     (p && p.points && p.points.length > 0) ? (
                         <Polyline
                             key={`pav-${idx}`}
@@ -330,8 +485,16 @@ const MapArea = () => {
             </MapContainer>
 
             {/* 4. Budget Calculator Overlay */}
-            {activeLayers.showBudgetCalculator && safePotholes.length > 0 && (
-                <BudgetPanel potholes={safePotholes} />
+            {activeLayers.showBudgetCalculator && (
+                <BudgetPanel
+                    potholes={safePotholes}
+                    isSelectingROI={isSelectingROI}
+                    setIsSelectingROI={setIsSelectingROI}
+                    handleFinishROI={handleFinishROI}
+                    handleClearROI={handleClearROI}
+                    hasROI={!!roiPolygon}
+                    tempPointsCount={tempROIPoints.length}
+                />
             )}
 
             {/* Legend Overlay */}
@@ -345,12 +508,16 @@ const MapArea = () => {
             </button>
 
             <div className={`
-                absolute right-4 bg-white p-4 rounded shadow-lg z-[1000] max-h-[60vh] overflow-y-auto
-                transition-all duration-300 ease-in-out
+                absolute right-4 bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-2xl z-[1000] max-h-[40vh] overflow-y-auto w-48
+                transition-all duration-300 ease-in-out border border-white/20
                 ${isLegendOpen ? 'bottom-20 opacity-100 scale-100' : 'bottom-20 opacity-0 scale-95 pointer-events-none'}
                 lg:bottom-4 lg:opacity-100 lg:scale-100 lg:pointer-events-auto
             `}>
-                <h4 className="font-bold mb-2 text-sm">Layers & Legend</h4>
+                <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-widest">Map Layers</h4>
+                    <Layers size={14} className="text-gray-300" />
+                </div>
+
                 <div className="space-y-3 text-sm">
                     {/* Map Style Selector */}
                     <div className="mb-4 bg-gray-50 p-2 rounded">
@@ -366,42 +533,49 @@ const MapArea = () => {
                         </select>
                     </div>
 
+                    {/* Show Hidden Toggle */}
+                    <div className="flex items-center justify-between py-1 border-b border-gray-50 mb-2">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase">Show Hidden</span>
+                        <input
+                            type="checkbox"
+                            checked={activeLayers.showHidden}
+                            onChange={() => useAppStore.getState().toggleLayer('showHidden')}
+                            className="w-3 h-3 text-blue-600 rounded"
+                        />
+                    </div>
+
 
                     {activeLayers.iri && (
-                        <div>
-                            <div className="font-semibold text-xs mb-1 bg-gray-100 p-1 rounded">IRI Quality</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-600 mr-2"></span> Good (0-3)</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-yellow-400 mr-2"></span> Fair (3-5)</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-orange-500 mr-2"></span> Poor (5-7)</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-600 mr-2"></span> Bad (&gt;7)</div>
+                        <div className="pt-2 border-t border-gray-50">
+                            <div className="font-bold text-[9px] text-gray-400 mb-1.5 uppercase">IRI Quality</div>
+                            <div className="grid grid-cols-1 gap-1">
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-green-600 mr-2"></span> Good</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-yellow-400 mr-2"></span> Fair</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-orange-500 mr-2"></span> Poor</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-red-600 mr-2"></span> Bad</div>
+                            </div>
                         </div>
                     )}
 
                     {activeLayers.vehicles && (
-                        <div>
-                            <div className="font-semibold text-xs mb-1 bg-gray-100 p-1 rounded">Vehicles</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-blue-600 mr-2"></span> Car</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-orange-500 mr-2"></span> Truck</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-600 mr-2"></span> Motorcycle/Bike</div>
-                        </div>
-                    )}
-
-                    {activeLayers.potholes && (
-                        <div>
-                            <div className="font-semibold text-xs mb-1 bg-gray-100 p-1 rounded">Hazards</div>
-                            <div className="flex items-center">
-                                <span className="w-3 h-3 rounded-full bg-red-600 mr-2"></span> Pothole
+                        <div className="pt-2 border-t border-gray-50">
+                            <div className="font-bold text-[9px] text-gray-400 mb-1.5 uppercase">Vehicles</div>
+                            <div className="grid grid-cols-1 gap-1">
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-blue-600 mr-2"></span> Car</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-orange-500 mr-2"></span> Truck</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-green-600 mr-2"></span> Cycle</div>
                             </div>
                         </div>
                     )}
 
                     {activeLayers.pavement && (
-                        <div>
-                            <div className="font-semibold text-xs mb-1 bg-gray-100 p-1 rounded">Pavement Type</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: '#2F2F2F' }}></span> Flexible</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: '#D3D3D3' }}></span> Rigid</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: '#8B4513' }}></span> Soil</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: '#FFFFFF' }}></span> Gravel</div>
+                        <div className="pt-2 border-t border-gray-50">
+                            <div className="font-bold text-[9px] text-gray-400 mb-1.5 uppercase">Pavement</div>
+                            <div className="grid grid-cols-1 gap-1">
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: '#2F2F2F' }}></span> Flexible</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full mr-2 bg-gray-300"></span> Rigid</div>
+                                <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: '#8B4513' }}></span> Soil</div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -413,7 +587,27 @@ const MapArea = () => {
 export default MapArea;
 
 // Custom Pothole Popup Component
+// --- HELPERS ---
+
 const PotholePopup = ({ pothole }) => {
+    const { toggleDetectionVisibility, deleteDetection } = useAppStore();
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handleHide = async () => {
+        setIsProcessing(true);
+        await toggleDetectionVisibility(pothole.upload_id, pothole.id, !pothole.is_hidden);
+        setIsProcessing(false);
+    };
+
+    const handleDelete = async () => {
+        if (window.confirm("Permanently delete this detection? (SuperUser only)")) {
+            setIsProcessing(true);
+            const success = await deleteDetection(pothole.upload_id, pothole.id);
+            if (!success) alert("Only SuperUsers can delete detections.");
+            setIsProcessing(false);
+        }
+    };
+
     const handleImageError = (e) => {
         e.target.style.display = 'none';
         e.target.nextElementSibling.style.display = 'block';
@@ -421,9 +615,13 @@ const PotholePopup = ({ pothole }) => {
 
     return (
         <div style={{ textAlign: 'center', minWidth: '250px', fontFamily: 'Arial, sans-serif' }}>
-            <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>🚧 Pothole Detection</h4>
-            <p style={{ margin: '5px 0' }}><strong>Confidence:</strong> {(pothole.confidence * 100).toFixed(2)}%</p>
-            <p style={{ margin: '5px 0', fontSize: '12px', color: '#666' }}>{pothole.image_path}</p>
+            <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50', fontWeight: 'bold' }}>🚧 Road Defect</h4>
+
+            {pothole.is_hidden && (
+                <div style={{ marginBottom: '8px', background: '#f3f4f6', color: '#6b7280', fontSize: '10px', padding: '4px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                    Hidden from Budget
+                </div>
+            )}
 
             <div style={{ margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                 <a href={pothole.image_url} target="_blank" rel="noopener noreferrer">
@@ -434,19 +632,35 @@ const PotholePopup = ({ pothole }) => {
                         alt="Pothole Detection"
                     />
                 </a>
-                <div style={{ display: 'none', color: '#e74c3c', fontSize: '12px', padding: '10px' }}>
-                    ❌ Image failed to load<br />
-                    <a href={pothole.image_url} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', textDecoration: 'none', fontSize: '10px' }}>
-                        Click here to view image
-                    </a>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ background: '#eff6ff', padding: '6px', borderRadius: '6px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '9px', color: '#3b82f6', textTransform: 'uppercase' }}>Conf</div>
+                    <div style={{ fontWeight: 'bold' }}>{(pothole.confidence * 100).toFixed(1)}%</div>
+                </div>
+                <div style={{ background: '#fffbeb', padding: '6px', borderRadius: '6px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '9px', color: '#d97706', textTransform: 'uppercase' }}>Cost</div>
+                    <div style={{ fontWeight: 'bold' }}>₱{(pothole.repair_cost || 0).toLocaleString()}</div>
                 </div>
             </div>
 
-            <p style={{ margin: '5px 0', fontSize: '10px', color: '#999' }}>
-                <a href={pothole.image_url} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', textDecoration: 'none' }}>
-                    View full image in new tab
-                </a>
-            </p>
+            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                <button
+                    onClick={handleHide}
+                    disabled={isProcessing}
+                    style={{ flex: 1, padding: '6px', borderRadius: '4px', border: 'none', background: pothole.is_hidden ? '#2563eb' : '#e5e7eb', color: pothole.is_hidden ? 'white' : '#374151', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                    {pothole.is_hidden ? '👁️ Unhide' : '👓 Hide'}
+                </button>
+                <button
+                    onClick={handleDelete}
+                    disabled={isProcessing}
+                    style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                    🗑️ Delete
+                </button>
+            </div>
         </div>
     );
 };

@@ -9,6 +9,7 @@ import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';
 import DiagnosisCard from '../components/DiagnosisCard';
+import { isPointInPolygon } from '../utils/geo';
 
 // Helper for Pothole Diagnosis Logic (Mirrors Backend)
 const getPotholeDiagnosis = (count, density) => {
@@ -56,7 +57,7 @@ const getPotholeDiagnosis = (count, density) => {
 
 const Analytics = () => {
     const [activeTab, setActiveTab] = useState('iri');
-    const { iriFiles, potholeFiles, vehicleFiles, pavementFiles } = useAppStore();
+    const { iriFiles, potholeFiles, vehicleFiles, pavementFiles, roiPolygon } = useAppStore();
 
     // --- Data Aggregation Logic ---
 
@@ -107,45 +108,61 @@ const Analytics = () => {
     const iriAnalytics = useMemo(() => {
         if (!iriFiles || iriFiles.length === 0) return null;
 
-        // Only consider visible files
-        const visibleFiles = iriFiles.filter(f => f.visible);
+        // Apply ROI and Visibility filtering
+        const processedFiles = iriFiles.filter(f => f.visible).map(file => {
+            if (!roiPolygon || !file.segments) return file;
 
-        // If no files are visible, show empty state
-        if (visibleFiles.length === 0) return null;
+            const filteredSegments = file.segments.filter(s =>
+                isPointInPolygon([s.start_lat, s.start_lon], roiPolygon)
+            );
 
-        // Use the first visible file for the chart
-        const activeFile = visibleFiles[0];
+            if (filteredSegments.length === 0) return null;
 
-        // Calculate aggregate stats across all visible files
-        const totalDistance = visibleFiles.reduce((acc, f) => acc + (f.stats?.totalDistance || 0), 0);
-        const avgIri = visibleFiles.reduce((acc, f) => acc + (f.stats?.averageIri || 0), 0) / visibleFiles.length;
-        const totalSegments = visibleFiles.reduce((acc, f) => acc + (f.stats?.totalSegments || 0), 0);
+            // Recalculate stats for the isolated segment
+            const distance = filteredSegments.reduce((acc, s) => acc + (s.distance_end - s.distance_start), 0);
+            const avgIri = filteredSegments.length > 0
+                ? filteredSegments.reduce((acc, s) => acc + s.iri_value, 0) / filteredSegments.length
+                : 0;
 
-        // Count "Poor" segments (IRI > 5)
+            return {
+                ...file,
+                segments: filteredSegments,
+                stats: {
+                    ...file.stats,
+                    totalDistance: distance,
+                    averageIri: avgIri,
+                    totalSegments: filteredSegments.length
+                }
+            };
+        }).filter(Boolean);
+
+        if (processedFiles.length === 0) return null;
+
+        const activeFile = processedFiles[0];
+        const totalDistance = processedFiles.reduce((acc, f) => acc + (f.stats?.totalDistance || 0), 0);
+        const avgIri = processedFiles.reduce((acc, f) => acc + (f.stats?.averageIri || 0), 0) / processedFiles.length;
+        const totalSegments = processedFiles.reduce((acc, f) => acc + (f.stats?.totalSegments || 0), 0);
+
         let poorSegmentCount = 0;
-        visibleFiles.forEach(f => {
-            if (f.segments) {
-                poorSegmentCount += f.segments.filter(s => s.iri_value > 5).length;
-            }
+        processedFiles.forEach(f => {
+            poorSegmentCount += f.segments.filter(s => s.iri_value > 5).length;
         });
 
-        // Chart Data: Use segments from the active file
-        const chartData = activeFile.segments;
-
         return {
-            chartData,
+            chartData: activeFile.segments,
             stats: {
                 avgIri: avgIri.toFixed(2),
                 totalDistance: (totalDistance / 1000).toFixed(2), // km
                 totalSegments,
                 poorSegments: poorSegmentCount
             },
-            filename: activeFile.filename
+            filename: activeFile.filename,
+            activeFile // Pass file for quality cards
         };
-    }, [iriFiles]);
+    }, [iriFiles, roiPolygon]);
 
 
-    // 2. Pothole Aggregation
+    // 2. Pothole Aggregation (includes Cracks)
     const potholeAnalytics = useMemo(() => {
         if (!potholeFiles || potholeFiles.length === 0) return null;
 
@@ -154,7 +171,15 @@ const Analytics = () => {
 
         let allPotholes = [];
         visibleFiles.forEach(f => {
-            if (f.data) allPotholes = [...allPotholes, ...f.data];
+            if (f.data) {
+                // Apply ROI and Visibility filtering
+                const filtered = f.data.filter(p => {
+                    if (p.is_hidden) return false;
+                    if (roiPolygon && !isPointInPolygon([p.lat, p.lon], roiPolygon)) return false;
+                    return true;
+                });
+                allPotholes = [...allPotholes, ...filtered];
+            }
         });
 
         if (allPotholes.length === 0) return null;
@@ -171,9 +196,9 @@ const Analytics = () => {
             { name: 'High (≥80%)', value: highConf, color: '#22c55e' },
             { name: 'Medium (50-80%)', value: medConf, color: '#f59e0b' },
             { name: 'Low (<50%)', value: lowConf, color: '#ef4444' }
-        ].filter(d => d.value > 0); // Only show non-zero categories
+        ].filter(d => d.value > 0);
 
-        // Timeline Data (if timestamps exist)
+        // Timeline Data
         const timelineMap = {};
         let hasTimestamps = false;
 
@@ -184,7 +209,7 @@ const Analytics = () => {
                 try {
                     const date = new Date(p.timestamp);
                     dateStr = date.toISOString().split('T')[0];
-                } catch (e) { /* Fallback */ }
+                } catch (e) { }
             }
             timelineMap[dateStr] = (timelineMap[dateStr] || 0) + 1;
         });
@@ -194,13 +219,9 @@ const Analytics = () => {
             count: timelineMap[date]
         }));
 
-        const validTimelineData = timelineData.filter(d => d.date !== 'Unknown');
-        const finalTimelineData = validTimelineData.length > 0 ? validTimelineData : timelineData;
-
-        // Image Gallery: Sort by confidence (highest first), limit for performance
         const galleryImages = [...allPotholes]
             .sort((a, b) => b.confidence - a.confidence)
-            .slice(0, 50) // Limit to top 50 for performance
+            .slice(0, 50)
             .map(p => ({
                 url: p.image_url,
                 confidence: p.confidence,
@@ -209,13 +230,12 @@ const Analytics = () => {
                 imagePath: p.image_path
             }));
 
-        // Calculate total repair cost
         const totalRepairCost = allPotholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
 
         return {
             totalCount,
             avgConfidence: (avgConfidence * 100).toFixed(1),
-            timelineData: finalTimelineData,
+            timelineData,
             hasTimestamps,
             confidenceDistribution,
             galleryImages,
@@ -223,7 +243,7 @@ const Analytics = () => {
             maxConfidence: (Math.max(...allPotholes.map(p => p.confidence)) * 100).toFixed(1),
             totalRepairCost
         };
-    }, [potholeFiles]);
+    }, [potholeFiles, roiPolygon]);
 
 
     // 3. Traffic Aggregation
@@ -233,8 +253,15 @@ const Analytics = () => {
         const visibleFiles = vehicleFiles.filter(f => f.visible);
         let allVehicles = [];
         visibleFiles.forEach(f => {
-            if (f.data) allVehicles = [...allVehicles, ...f.data];
+            if (f.data) {
+                const filtered = roiPolygon
+                    ? f.data.filter(v => isPointInPolygon([v.lat, v.lon], roiPolygon))
+                    : f.data;
+                allVehicles = [...allVehicles, ...filtered];
+            }
         });
+
+        if (allVehicles.length === 0) return null;
 
         // Composition
         const composition = {};
@@ -253,7 +280,7 @@ const Analytics = () => {
             totalCount: allVehicles.length,
             compositionData
         };
-    }, [vehicleFiles]);
+    }, [vehicleFiles, roiPolygon]);
 
 
     // 4. Pavement Aggregation
@@ -263,12 +290,17 @@ const Analytics = () => {
         const visibleFiles = pavementFiles.filter(f => f.visible);
         let allSegments = [];
         visibleFiles.forEach(f => {
-            if (f.data) allSegments = [...allSegments, ...f.data];
+            if (f.data) {
+                // For segments, we check the first point for ROI intersection
+                const filtered = roiPolygon
+                    ? f.data.filter(s => s.points?.[0] && isPointInPolygon(s.points[0], roiPolygon))
+                    : f.data;
+                allSegments = [...allSegments, ...filtered];
+            }
         });
 
-        // Distribution by Type (Distance or Count?)
-        // Count is easier. Distance requires calculating length of segments.
-        // Let's do Count for now, usually sufficient for POC.
+        if (allSegments.length === 0) return null;
+
         const typeCount = {};
         allSegments.forEach(s => {
             const type = s.type || 'Unknown';
@@ -281,7 +313,6 @@ const Analytics = () => {
             color: getPavementColor(type)
         }));
 
-        // Fix color mapping
         const processedPavementData = pavementData.map(d => ({
             ...d,
             color: getPavementColor(d.name.toLowerCase())
@@ -291,7 +322,7 @@ const Analytics = () => {
             totalSegments: allSegments.length,
             pavementData: processedPavementData
         };
-    }, [pavementFiles]);
+    }, [pavementFiles, roiPolygon]);
 
 
     // Helper to truncate long filenames for mobile display
@@ -345,45 +376,31 @@ const Analytics = () => {
                                         return;
                                     }
 
-                                    // 1. Prepare Data for Report
-                                    const visibleFiles = iriFiles.filter(f => f.visible);
-
-                                    // Calculate summaries
-                                    const totalDistance = visibleFiles.reduce((acc, f) => acc + (f.stats?.totalDistance || 0), 0);
-                                    const avgIri = visibleFiles.length > 0
-                                        ? visibleFiles.reduce((acc, f) => acc + (f.stats?.averageIri || 0), 0) / visibleFiles.length
-                                        : 0;
-
-                                    // Count critical segments
-                                    let criticalSegments = 0;
-                                    visibleFiles.forEach(f => {
-                                        if (f.segments) criticalSegments += f.segments.filter(s => s.iri_value > 7).length;
-                                    });
-
-                                    // Prepare potholes list
-                                    let allPotholes = [];
-                                    if (potholeFiles) {
-                                        potholeFiles.filter(f => f.visible).forEach(f => {
-                                            if (f.data) allPotholes.push(...f.data);
-                                        });
-                                    }
-
+                                    // 1. Prepare Data for Report (Respecting ROI and Hidden status)
                                     const reportData = {
                                         summary: {
-                                            totalDistance,
-                                            avgIri,
-                                            totalPotholes: allPotholes.length,
-                                            criticalSegments
+                                            totalDistance: parseFloat(iriAnalytics?.stats?.totalDistance || 0) * 1000, // convert back to m
+                                            avgIri: parseFloat(iriAnalytics?.stats?.avgIri || 0),
+                                            totalPotholes: potholeAnalytics?.totalCount || 0,
+                                            criticalSegments: iriAnalytics?.stats?.poorSegments || 0
                                         },
-                                        files: visibleFiles.map(f => ({
-                                            filename: f.filename,
-                                            stats: {
-                                                averageIri: f.stats.averageIri,
-                                                quality: getQualityAssessment(f.stats.averageIri)
-                                            },
-                                            segments: f.segments
-                                        })),
-                                        potholes: allPotholes,
+                                        files: iriAnalytics ? [
+                                            {
+                                                filename: iriAnalytics.filename,
+                                                stats: {
+                                                    averageIri: parseFloat(iriAnalytics.stats.avgIri),
+                                                    quality: getQualityAssessment(parseFloat(iriAnalytics.stats.avgIri))
+                                                },
+                                                segments: iriAnalytics.chartData
+                                            }
+                                        ] : [],
+                                        potholes: potholeAnalytics?.galleryImages?.map(img => ({
+                                            lat: img.lat,
+                                            lon: img.lon,
+                                            confidence: img.confidence,
+                                            image_url: img.url,
+                                            repair_cost: 0 // Optional: simplify for report
+                                        })) || [],
                                         traffic: trafficAnalytics || { totalCount: 0, compositionData: [] },
                                         pavement: pavementAnalytics || { totalSegments: 0, pavementData: [] }
                                     };
@@ -605,9 +622,9 @@ const Analytics = () => {
                                                             }}
                                                         />
                                                         {/* Confidence Badge */}
-                                                        <div className={`absolute top - 2 right - 2 px - 2 py - 1 rounded - full text - xs font - bold text - white shadow ${img.confidence >= 0.8 ? 'bg-green-500' :
-                                                            img.confidence >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
-                                                            } `}>
+                                                        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold text-white shadow brightness-110 ${img.confidence >= 0.8 ? 'bg-green-600' :
+                                                                img.confidence >= 0.5 ? 'bg-amber-500' : 'bg-rose-600'
+                                                            }`}>
                                                             {(img.confidence * 100).toFixed(0)}%
                                                         </div>
                                                         {/* Hover Overlay */}

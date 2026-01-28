@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from typing import List, Dict, Any
-import io
+from typing import List, Dict, Any, Optional
 from functools import lru_cache
 import pandas as pd
 import os
@@ -45,15 +43,17 @@ async def process_pothole_data(
     Uses caching for fast repeat requests.
     - All users can view shared data (read-only for non-admins)
     """
-    # Find the file in the database - ALL users see shared data
+    # 1. Find the file in the database (Supports pothole AND crack categories)
     upload_record = db.query(UploadModel).filter(
-        UploadModel.category == 'pothole', 
+        UploadModel.category.in_(['pothole', 'crack']),
         UploadModel.file_type == 'csv',
         (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
     ).order_by(UploadModel.upload_date.desc()).first()
     
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File record not found for: {filename}")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+
+    category = upload_record.category # 'pothole' or 'crack'
     
     # ============================================
     # CACHE CHECK - Return cached data if available
@@ -63,12 +63,12 @@ async def process_pothole_data(
         try:
             cached_response = json.loads(upload_record.cached_data)
             
-            # Check if cache has storage_path (new format) - invalidate old caches
+            # Check if cache has upload_id (new format) - invalidate old caches
             if cached_response.get('data') and len(cached_response['data']) > 0:
                 first_marker = cached_response['data'][0]
-                if not first_marker.get('storage_path'):
-                    # Old cache format without storage_path - need to re-process
-                    logger.info(f"Invalidating old cache for {filename} (missing storage_path)")
+                if not first_marker.get('upload_id') or not first_marker.get('storage_path'):
+                    # Old cache format - need to re-process to include upload_id for cleaning tools
+                    logger.info(f"Invalidating old cache for {filename} (missing upload_id or storage_path)")
                     upload_record.cached_data = None
                     db.commit()
                 else:
@@ -106,12 +106,11 @@ async def process_pothole_data(
         if missing_cols:
             raise HTTPException(status_code=400, detail=f"Missing columns: {missing_cols}")
         
-        # 2. Fetch all pothole image records to create a filename -> storage_path map
-        # For shared data model, we need images from the same user who uploaded the CSV
+        # 2. Fetch all detection images (pothole/crack) for proxy lookups
         file_owner_id = upload_record.user_id
         image_records = db.query(UploadModel).filter(
             UploadModel.user_id == file_owner_id,
-            UploadModel.category == 'pothole',
+            UploadModel.category == category, # Match the CSV category
             UploadModel.file_type.in_(['jpg', 'jpeg', 'png']) 
         ).all()
         
@@ -123,17 +122,37 @@ async def process_pothole_data(
         total_defect_area_m2 = 0.0
         valid_coords = [] # Track coordinates for road length calc
         
+        # Load overrides
+        overrides = {}
+        if upload_record.status_overrides:
+            try:
+                overrides = json.loads(upload_record.status_overrides)
+            except:
+                overrides = {}
+
         for idx, row in df.iterrows():
             try:
+                # Check for persistent overrides
+                idx_str = str(idx)
+                row_override = overrides.get(idx_str, {})
+                
+                # PERMANENT DELETE (SuperUser Action)
+                if row_override.get("deleted") is True:
+                    continue
+
+                # Check for hidden status (All users)
+                is_hidden = row_override.get("hidden", False)
+
                 lat = float(row['latitude'])
                 lon = float(row['longitude'])
                 
                 if math.isnan(lat) or math.isnan(lon):
                     continue
-                
-                # Capture coordinate for distance calculation
+
+                # Capture coordinate for distance calculation (Use all valid, non-deleted points)
+                # This ensures Road Length remains static even when hiding specific defects
                 valid_coords.append((lat, lon))
-                    
+
                 image_path = row['image_path'] # e.g. "frame_11030.jpg"
                 confidence = float(row['confidence_score'])
                 
@@ -151,13 +170,13 @@ async def process_pothole_data(
                 
 
                 # Generate direct R2 URL (Presigned) to bypass backend proxy and save memory
-                storage_path = image_map.get(image_path)
+                storage_path = None
                 
-                if not storage_path:
-                    # Fallback: If image not in DB (CSV-only upload), try to guess the path
-                    # Standard path: user_id/pothole/filename
-                    # Note: We can't know for sure if it was renamed (e.g. _1), but this works for clean states
-                    storage_path = f"{file_owner_id}/pothole/{image_path}"
+                if image_path in image_map:
+                    storage_path = image_map[image_path]
+                else:
+                    # Dynamic path logic
+                    storage_path = f"{file_owner_id}/{category}/{image_path}"
                 
                 # Generate URL using the storage service (generates presigned URL for R2)
                 image_url = file_handler.storage.get_file_url(storage_path)
@@ -184,18 +203,25 @@ async def process_pothole_data(
                     pavement_type = str(row['pavement_type']).lower()
                 
                 cost_data = CostCalculator.calculate_repair_cost(
-                    defect_type='pothole',
+                    defect_type=category,
                     pavement_type=pavement_type,
                     area_m2=area_m2
                 )
                 
-                # Accumulate Total Area for Density Calculation
-                total_defect_area_m2 += area_m2
+                if not is_hidden:
+                    # Accumulate Total Area for Density Calculation
+                    total_defect_area_m2 += area_m2
 
-                # Create popup HTML (Enhanced with engineering data)
+                # Create popup HTML
+                category_title = "🚧 Pothole Detection" if category == 'pothole' else "📉 Crack Detection"
+                
+                # Add a 'hidden' badge to popup if applicable
+                hidden_badge = '<div style="background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 99px; font-size: 10px; display: inline-block; margin-bottom: 5px;">Hiding from Budget</div>' if is_hidden else ''
+
                 popup_html = f"""
                 <div style="text-align: center; min-width: 250px; font-family: Arial, sans-serif;">
-                    <h4 style="margin: 0 0 10px 0; color: #dc2626; border-bottom: 2px solid #fee2e2; padding-bottom: 5px;">🚧 Pothole Detection</h4>
+                    {hidden_badge}
+                    <h4 style="margin: 0 0 10px 0; color: #dc2626; border-bottom: 2px solid #fee2e2; padding-bottom: 5px;">{category_title}</h4>
                     <p style="margin: 5px 0;"><strong>Confidence:</strong> {confidence:.2%}</p>
                     
                     <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
@@ -228,7 +254,7 @@ async def process_pothole_data(
                     'lat': lat,
                     'lon': lon,
                     'popup_html': popup_html,
-                    'tooltip': f"Pothole Detection ({confidence:.1%})",
+                    'tooltip': f"{category.title()} Detection ({confidence:.1%})",
                     'confidence': confidence,
                     'area_m2': area_m2,
                     'repair_cost': cost_data['total_cost_php'],
@@ -238,6 +264,8 @@ async def process_pothole_data(
                     'storage_path': storage_path,  # Store for URL regeneration from cache
                     '_cached_url': image_url,  # Store original URL for popup replacement
                     'timestamp': timestamp,
+                    'is_hidden': is_hidden,
+                    'upload_id': upload_record.id,
                     'id': idx
                 })
             except Exception as e:
@@ -279,7 +307,7 @@ async def process_pothole_data(
                 density_percent = (total_defect_area_m2 / total_road_area_m2) * 100.0
             
             # 3d. Get Expert Diagnosis
-            expert_diagnosis = EngineeringExpert.diagnose('pothole', density_percent)
+            expert_diagnosis = EngineeringExpert.diagnose(category, density_percent)
             
             # Add to response
             response_data['summary'] = {
@@ -301,7 +329,7 @@ async def process_pothole_data(
             upload_record.cached_data = json.dumps(response_data)
             upload_record.cache_timestamp = datetime.utcnow()
             db.commit()
-            logger.info(f"Cached pothole data for {filename} ({len(markers_data)} markers)")
+            logger.info(f"Cached {category} data for {filename} ({len(markers_data)} markers)")
         except Exception as cache_err:
             logger.warning(f"Failed to cache data: {cache_err}")
             # Don't fail the request if caching fails
@@ -347,6 +375,7 @@ def get_pothole_image(
 @router.get("/proxy")
 def get_image_by_key(
     key: str,
+    current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -354,10 +383,21 @@ def get_image_by_key(
     Required for reports where we know the exact path but might not have a clean DB record per file.
     """
     try:
-        # Security: basic check to prevent directory traversal or accessing abuse
+        # Security: basic check to prevent directory traversal
         if ".." in key or key.startswith("/"):
             raise HTTPException(status_code=400, detail="Invalid key format")
             
+        # Ownership check: Ensure user is asking for their own file (or is superuser)
+        # Path format: {user_id}/{category}/{filename}
+        try:
+            folder_user_id = int(key.split('/')[0])
+            if folder_user_id != current_user.id and not current_user.is_superuser:
+                 raise HTTPException(status_code=403, detail="Unauthorized access to this file")
+        except (ValueError, IndexError):
+            # If path doesn't start with an ID, check if it's a shared/public file
+            # For now, we enforce the {id}/ structure for security
+            raise HTTPException(status_code=400, detail="Invalid storage path structure")
+
         # Stream directly from storage provider (R2/Local)
         file_stream = file_handler.storage.get_file_stream(key)
         

@@ -20,9 +20,7 @@ class UploadModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     filename = Column(String, nullable=False)
-    filename = Column(String, nullable=False)
     original_filename = Column(String, nullable=False, index=True) # Added index for fast proxy lookup
-    file_type = Column(String, nullable=False)  # csv, jpg, png, etc.
     file_type = Column(String, nullable=False)  # csv, jpg, png, etc.
     category = Column(String, nullable=False, index=True)  # pothole, iri, vehicle
     storage_path = Column(String, nullable=False)  # Path in storage (local or R2)
@@ -33,6 +31,10 @@ class UploadModel(Base):
     # Cached processed data (for fast loading)
     cached_data = Column(Text, nullable=True)  # Cached processed JSON response
     cache_timestamp = Column(DateTime, nullable=True)  # When cache was created
+
+    # Persistent status overrides (e.g. manual deletions, visibility)
+    # Format: { "detection_idx": { "deleted": bool, "hidden": bool } }
+    status_overrides = Column(Text, nullable=True)
     
     # Relationships
     user = relationship("UserModel", back_populates="uploads")
@@ -87,6 +89,7 @@ class Upload(UploadBase):
     user_id: int
     storage_path: str
     upload_date: datetime
+    status_overrides: Optional[str] = None
     pothole_images: List[PotholeImage] = []
     
     class Config:

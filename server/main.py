@@ -20,7 +20,7 @@ except ImportError as e:
     logger.error(f"Failed to import IRI Calculator: {e}")
     exit(1)
 
-from api.v1.endpoints import auth, upload, iri, pothole, vehicle, pavement, presign
+from api.v1.endpoints import auth, upload, iri, pothole, vehicle, pavement, presign, uploads
 from core.config import settings
 from core.database import engine
 from models import user, upload as upload_models
@@ -58,6 +58,7 @@ app.include_router(pothole.router, prefix=f"{settings.API_V1_STR}/pothole", tags
 app.include_router(vehicle.router, prefix=f"{settings.API_V1_STR}/vehicle", tags=["vehicle"])
 app.include_router(pavement.router, prefix=f"{settings.API_V1_STR}/pavement", tags=["pavement"])
 app.include_router(presign.router, prefix=f"{settings.API_V1_STR}/presign", tags=["presign"])
+app.include_router(uploads.router, prefix=f"{settings.API_V1_STR}/uploads", tags=["uploads"])
 
 @app.get("/")
 async def root():
