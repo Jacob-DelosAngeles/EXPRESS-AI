@@ -16,37 +16,37 @@ const COLORS = {
     lightGreen: [240, 253, 244] // Green-50
 };
 
-// Helper to load image as base64
-const loadImageAsBase64 = (url) => {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'Anonymous'; // Required for canvas export
+// Helper to load image as base64 (using fetch to support auth headers)
+const loadImageAsBase64 = async (url, token = null) => {
+    try {
+        const headers = {};
+        // Add auth token if provided and URL is local/proxy
+        if (token && (url.startsWith('/') || url.includes('/api/v1'))) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
 
-        // Add cache busting to prevent using cached 'no-cors' images from the map
-        const safeUrl = url.startsWith('data:') ? url :
-            url + (url.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+            console.warn(`Image fetch failed: ${response.status} for ${url}`);
+            throw new Error(`HTTP ${response.status}`);
+        }
 
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            try {
-                resolve(canvas.toDataURL('image/png'));
-            } catch (e) {
-                reject(e); // Tainted canvas
-            }
-        };
-        img.onerror = (e) => {
-            console.error('Image load failed:', url, e);
-            reject(e);
-        };
-        img.src = safeUrl;
-    });
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.error('loadImageAsBase64 failed:', url, e);
+        throw e;
+    }
 };
 
-export const generateReport = async (projectData) => {
+export const generateReport = async (projectData, getToken = null) => {
+    // Get fresh token if provided
+    const token = getToken ? await getToken() : null;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
@@ -55,8 +55,8 @@ export const generateReport = async (projectData) => {
     // Try to load logo
     let logoData = null;
     try {
-        // Use standard path (file was updated with white background version)
-        logoData = await loadImageAsBase64('/logos/express-ai-logo.png');
+        // Use standard path
+        logoData = await loadImageAsBase64('/logos/express-ai-logo.png', token);
     } catch (e) {
         console.warn('Could not load logo, using text fallback');
     }
@@ -363,12 +363,12 @@ export const generateReport = async (projectData) => {
                         imgUrl = `${API_URL}/pothole/image/${filename}`;
                     }
 
-                    const imgData = await loadImageAsBase64(imgUrl);
+                    const imgData = await loadImageAsBase64(imgUrl, token);
                     doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
                 } catch (e) {
                     console.warn("Failed to load image via proxy, falling back to original URL", e);
                     try {
-                        // Fallback to original URL
+                        // Fallback to original URL (external URLs usually don't need our token)
                         const imgData = await loadImageAsBase64(p.image_url);
                         doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
                     } catch (e2) {

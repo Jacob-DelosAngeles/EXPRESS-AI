@@ -110,27 +110,28 @@ class EngineeringExpert:
                     "pre_rehab_assessment": "Monitor condition."
                 }
 
-        # --- 3. LINEAR CRACKING (Metric: Crack Length in meters) ---
+        # --- 3. CRACKING (Metric: Density % or Avg Length) ---
         elif dt == 'linear_crack' or dt == 'crack':
             cause = "Tire Pressure, Aging, Insufficient Thickness"
-            if metric_value > 1.0:
+            # When diagnosing a trip, metric_value is Density % (0-100)
+            if metric_value > 20.0:
                 recommendation = {
                     "status": "CRITICAL",
                     "color": "red",
                     "action": "Mill and Fill",
                     "method": "Crack depth likely extends to bottom. Conduct full rehab or Mill & Fill.",
-                    "insight": "Linear crack length > 1m. Structural integrity compromised.",
+                    "insight": "Crack density exceeds 20%. Structural integrity compromised.",
                     "cause": cause,
                     "pre_rehab_assessment": "Identify traffic characteristics."
                 }
-            elif metric_value >= 0.5:
+            elif metric_value >= 5.0:
                 recommendation = {
                     "status": "WARNING",
                     "color": "yellow",
                     "action": "Sealing",
-                    "method": "Check orientation. Apply crack sealing.",
-                    "vlm_prompt": "Check if cracks are interconnected (near each other).",
-                    "insight": "Crack length 0.5m-1m. Prevent moisture infiltration.",
+                    "method": "Conduct density check. Apply crack sealing.",
+                    "vlm_prompt": "Check if cracks are interconnected (alligator pattern) or if there are signs of pumping.",
+                    "insight": "Crack density 5-20%. Prevent moisture infiltration through sealing.",
                     "cause": cause,
                     "pre_rehab_assessment": "Determine previous rehabilitation year."
                 }
@@ -140,7 +141,7 @@ class EngineeringExpert:
                     "color": "green",
                     "action": "No Action",
                     "method": "Monitor condition.",
-                    "insight": "Minor hairline cracking (<0.5m).",
+                    "insight": "Minor cracking detected (Density <5%). Routine monitoring.",
                     "cause": cause,
                     "pre_rehab_assessment": "Conduct field coring."
                 }

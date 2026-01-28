@@ -8,6 +8,7 @@ import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, 
 import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';
+import { useAuth } from '../context/AuthContext';
 import DiagnosisCard from '../components/DiagnosisCard';
 import { isPointInPolygon } from '../utils/geo';
 
@@ -58,6 +59,7 @@ const getPotholeDiagnosis = (count, density) => {
 const Analytics = () => {
     const [activeTab, setActiveTab] = useState('iri');
     const { iriFiles, potholeFiles, vehicleFiles, pavementFiles, roiPolygon } = useAppStore();
+    const { getToken } = useAuth();
 
     // --- Data Aggregation Logic ---
 
@@ -227,7 +229,8 @@ const Analytics = () => {
                 confidence: p.confidence,
                 lat: p.lat,
                 lon: p.lon,
-                imagePath: p.image_path
+                imagePath: p.image_path,
+                storage_path: p.storage_path
             }));
 
         const totalRepairCost = allPotholes.reduce((sum, p) => sum + (p.repair_cost || 0), 0);
@@ -399,14 +402,15 @@ const Analytics = () => {
                                             lon: img.lon,
                                             confidence: img.confidence,
                                             image_url: img.url,
-                                            repair_cost: 0 // Optional: simplify for report
+                                            repair_cost: 0,
+                                            storage_path: img.storage_path
                                         })) || [],
                                         traffic: trafficAnalytics || { totalCount: 0, compositionData: [] },
                                         pavement: pavementAnalytics || { totalSegments: 0, pavementData: [] }
                                     };
 
                                     // 2. Generate PDF
-                                    generateReport(reportData);
+                                    generateReport(reportData, getToken);
                                 }}
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-md active:scale-95 transition-all"
                             >
@@ -623,7 +627,7 @@ const Analytics = () => {
                                                         />
                                                         {/* Confidence Badge */}
                                                         <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold text-white shadow brightness-110 ${img.confidence >= 0.8 ? 'bg-green-600' :
-                                                                img.confidence >= 0.5 ? 'bg-amber-500' : 'bg-rose-600'
+                                                            img.confidence >= 0.5 ? 'bg-amber-500' : 'bg-rose-600'
                                                             }`}>
                                                             {(img.confidence * 100).toFixed(0)}%
                                                         </div>

@@ -32,6 +32,7 @@ iri_service = IRIService()
 # Allowed file extensions by category
 ALLOWED_EXTENSIONS = {
     'pothole': {'.csv', '.jpg', '.jpeg', '.png', '.gif', '.bmp'},
+    'crack': {'.csv', '.jpg', '.jpeg', '.png', '.gif', '.bmp'},
     'iri': {'.csv'},
     'vehicle': {'.csv'},
     'pavement': {'.csv'}
