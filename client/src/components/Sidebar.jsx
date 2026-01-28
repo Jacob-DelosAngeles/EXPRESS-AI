@@ -317,7 +317,7 @@ const Sidebar = () => {
         console.log(`Recalculating ${file.filename} (${i + 1}/${visibleFiles.length})...`);
 
         // Force recompute with new segment length
-        const computeRes = await fileService.computeIRI(file.filename, newSegmentLength);
+        const computeRes = await fileService.computeIRI(file.id, newSegmentLength);
         if (computeRes.success) {
           // Update this file in the full list
           setIriFiles(prev => prev.map(f =>
@@ -327,11 +327,11 @@ const Sidebar = () => {
               raw_data: computeRes.raw_data,
               filtered_data: computeRes.filtered_data,
               stats: {
-                averageIri: computeRes.segments.reduce((acc, seg) => acc + seg.iri_value, 0) / computeRes.segments.length,
-                maxIri: Math.max(...computeRes.segments.map(s => s.iri_value)),
-                avgSpeed: computeRes.segments.reduce((acc, seg) => acc + seg.mean_speed, 0) / computeRes.segments.length,
-                totalDistance: computeRes.segments[computeRes.segments.length - 1].distance_end,
-                totalSegments: computeRes.total_segments
+                averageIri: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments.reduce((acc, seg) => acc + seg.iri_value, 0) / computeRes.segments.length : 0,
+                maxIri: (computeRes.segments && computeRes.segments.length > 0) ? Math.max(...computeRes.segments.map(s => s.iri_value)) : 0,
+                avgSpeed: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments.reduce((acc, seg) => acc + seg.mean_speed, 0) / computeRes.segments.length : 0,
+                totalDistance: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments[computeRes.segments.length - 1].distance_end : 0,
+                totalSegments: computeRes.total_segments || 0
               }
             } : f
           ));
@@ -382,7 +382,7 @@ const Sidebar = () => {
     try {
       console.log(`Recalculating ${file.filename} with ${newSegmentLength}m segments...`);
 
-      const computeRes = await fileService.computeIRI(file.filename, newSegmentLength);
+      const computeRes = await fileService.computeIRI(file.id, newSegmentLength);
       if (computeRes.success) {
         // Update the specific file in the array
         // Note: Zustand doesn't support callback pattern, so we read current state
@@ -678,11 +678,11 @@ const Sidebar = () => {
           raw_data: computeRes.raw_data,
           filtered_data: computeRes.filtered_data,
           stats: {
-            averageIri: computeRes.segments.reduce((acc, seg) => acc + seg.iri_value, 0) / computeRes.segments.length,
-            maxIri: Math.max(...computeRes.segments.map(s => s.iri_value)),
-            avgSpeed: computeRes.segments.reduce((acc, seg) => acc + seg.mean_speed, 0) / computeRes.segments.length,
-            totalDistance: computeRes.segments[computeRes.segments.length - 1].distance_end,
-            totalSegments: computeRes.total_segments
+            averageIri: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments.reduce((acc, seg) => acc + seg.iri_value, 0) / computeRes.segments.length : 0,
+            maxIri: (computeRes.segments && computeRes.segments.length > 0) ? Math.max(...computeRes.segments.map(s => s.iri_value)) : 0,
+            avgSpeed: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments.reduce((acc, seg) => acc + seg.mean_speed, 0) / computeRes.segments.length : 0,
+            totalDistance: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments[computeRes.segments.length - 1].distance_end : 0,
+            totalSegments: computeRes.total_segments || 0
           }
         });
       } else {

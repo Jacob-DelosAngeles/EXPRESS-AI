@@ -124,15 +124,24 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
         
         logger.info(f"Total distance: {max_distance:.2f}m, creating segments of {segment_length}m")
         
-        for start_dist in np.arange(0, max_distance - segment_length, segment_length):
-            end_dist = start_dist + segment_length
+        # Inclusive loop: create at least one segment even for short files
+        for start_dist in np.arange(0, max_distance, segment_length):
+            end_dist = min(start_dist + segment_length, max_distance)
+            
+            # Skip tiny trailing fragments (<2m) unless it's the only segment
+            if (end_dist - start_dist < 2.0) and len(segments) > 0:
+                continue
             
             # Find indices
             start_idx = np.argmin(np.abs(distance - start_dist))
             end_idx = np.argmin(np.abs(distance - end_dist))
             
             if end_idx <= start_idx:
-                continue
+                # Expand by 1 if possible
+                if end_idx < len(distance) - 1:
+                    end_idx += 1
+                else:
+                    continue
             
             # Calculate IRI for segment
             segment_accel = vertical_accel[start_idx:end_idx]
