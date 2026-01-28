@@ -251,20 +251,34 @@ class IRICalculator:
         segments = []
         max_distance = distance[-1]
 
-        for start_dist in np.arange(0, max_distance - segment_length, segment_length):
-            end_dist = start_dist + segment_length
+        # Inclusive loop: ensures we get at least one segment even if max_distance < segment_length
+        for start_dist in np.arange(0, max_distance, segment_length):
+            end_dist = min(start_dist + segment_length, max_distance)
+
+            # Skip tiny trailing fragments less than 2 meters, 
+            # UNLESS it's the very first segment (to handle ultra-short files)
+            if (end_dist - start_dist < 2.0) and len(segments) > 0:
+                continue
 
             # Find indices for this segment
             start_idx = np.argmin(np.abs(distance - start_dist))
             end_idx = np.argmin(np.abs(distance - end_dist))
 
-            if end_idx > start_idx:
+            if end_idx >= start_idx:
+                # Ensure we have at least 2 points to avoid mean/std errors
+                if end_idx - start_idx < 2:
+                    # Expand end_idx by 1 if possible
+                    if end_idx < len(distance) - 1:
+                        end_idx += 1
+                    else:
+                        continue
+                
                 segment = {
                     'distance_start': start_dist,
                     'distance_end': end_dist,
-                    'vertical_accel': vertical_accel [start_idx: end_idx],
-                    'speed' : speed[start_idx:end_idx],
-                    'length' : segment_length,
+                    'vertical_accel': vertical_accel[start_idx:end_idx],
+                    'speed': speed[start_idx:end_idx],
+                    'length': end_dist - start_dist,
                     'center_index': start_idx + (end_idx - start_idx) // 2,
                     'start_index': start_idx,
                     'end_index': end_idx
