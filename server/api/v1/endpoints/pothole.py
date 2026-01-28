@@ -130,21 +130,40 @@ async def process_pothole_data(
             if not path_col: missing.append('image_path')
             raise HTTPException(status_code=400, detail=f"Required detection columns missing: {missing}")
         
-        # 2. Fetch all detection images for this user to ensure we find matches even if categories were mixed
+        # 2. Fetch all detection images for this user
         file_owner_id = upload_record.user_id
         image_records = db.query(UploadModel).filter(
             UploadModel.user_id == file_owner_id,
             UploadModel.file_type.in_(['jpg', 'jpeg', 'png', 'gif', 'bmp']) 
         ).all()
         
-        # Create lookup dictionary: original_filename -> storage_path
-        image_map = {}
+        # Categorical Separation: Group images by category to prioritize matches
+        category_images = {} # {category: {filename: storage_path}}
         for rec in image_records:
-            image_map[rec.original_filename] = rec.storage_path
-            # Also add basename as fallback if needed
+            cat = rec.category
+            if cat not in category_images: category_images[cat] = {}
+            
+            # Map by original filename
+            category_images[cat][rec.original_filename] = rec.storage_path
+            # Also map by basename as fallback
             base = os.path.basename(rec.original_filename)
-            if base not in image_map:
-                image_map[base] = rec.storage_path
+            if base not in category_images[cat]:
+                category_images[cat][base] = rec.storage_path
+
+        # Create the final prioritized map for THIS CSV's category
+        image_map = {}
+        target_cat = category # 'pothole' or 'crack'
+        
+        # Level 1: Prioritize current category
+        if target_cat in category_images:
+            image_map.update(category_images[target_cat])
+            
+        # Level 2: Fallback to all other categories (only if NOT already in map)
+        for cat, images in category_images.items():
+            if cat != target_cat:
+                for fname, path in images.items():
+                    if fname not in image_map:
+                        image_map[fname] = path
         
         markers_data = []
         total_defect_area_m2 = 0.0

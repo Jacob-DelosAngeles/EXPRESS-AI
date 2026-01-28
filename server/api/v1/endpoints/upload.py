@@ -61,6 +61,9 @@ async def upload_files(
     results = []
     pothole_csv_upload_id = None  # Track CSV upload for linking images
     
+    # Generate a unique batch_id for this upload session to prevent naming collisions
+    batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
     # ---------------------------------------------------------
     # SMART FILTERING (STRICT MODE) FOR POTHOLE UPLOADS
     # Now supports batched uploads where CSV was uploaded first
@@ -192,8 +195,8 @@ async def upload_files(
             is_csv = file_extension == '.csv'
             is_image = file_extension in {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
             
-            # Save file to storage (organized by user_id/category/)
-            storage_path = await file_handler.save_uploaded_file(file, current_user.id, type)
+            # Save file to storage (organized by user_id/category/batch_id/)
+            storage_path = await file_handler.save_uploaded_file(file, current_user.id, type, directory=batch_id)
             
             rows_count = 0
             message = "File uploaded."

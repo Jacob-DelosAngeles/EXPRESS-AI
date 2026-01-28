@@ -10,17 +10,18 @@ class FileHandler:
     def __init__(self):
         self.storage = get_storage_service()
     
-    async def save_uploaded_file(self, file: UploadFile, user_id: int, category: str) -> str:
+    async def save_uploaded_file(self, file: UploadFile, user_id: int, category: str, directory: str = "") -> str:
         """
         Save uploaded file using the configured storage service
         Args:
             file: The uploaded file
             user_id: ID of the user uploading the file
             category: Category of upload (pothole, iri, vehicle)
+            directory: Optional subdirectory within category (e.g., batch_id)
         Returns:
             storage_path: Path where file is stored
         """
-        return await self.storage.save_file(file, user_id, category)
+        return await self.storage.save_file(file, user_id, category, directory=directory)
             
     def get_file_info(self, file_path: str) -> dict:
         """
