@@ -5,8 +5,10 @@ const useAppStore = create((set, get) => ({
   vehicles: [],
   potholes: [],
   pavement: [],
+  cracks: [],
   iriFiles: [], // Array of { id, filename, segments, stats, visible, color }
   potholeFiles: [], // Array of { id, filename, data, visible }
+  crackFiles: [], // Array of { id, filename, data, visible }
 
   // ROI / Lasso State
   roiPolygon: null, // [[lat, lon], ...]
@@ -15,6 +17,7 @@ const useAppStore = create((set, get) => ({
   activeLayers: {
     vehicles: true,
     potholes: true,
+    cracks: true,
     pavement: true,
     iri: true, // Global toggle for all IRI files
     showBudgetCalculator: false,
@@ -31,6 +34,7 @@ const useAppStore = create((set, get) => ({
   // Actions
   setVehicles: (data) => set({ vehicles: data }),
   setPotholes: (data) => set({ potholes: data }),
+  setCracks: (data) => set({ cracks: data }),
   setPavement: (data) => set({ pavement: data }),
 
   // IRI Actions
@@ -46,6 +50,19 @@ const useAppStore = create((set, get) => ({
     iriFiles: state.iriFiles.map(f => f.id === id ? { ...f, visible: !f.visible } : f)
   })),
   clearIriFiles: () => set({ iriFiles: [] }),
+
+  // Crack File Actions
+  setCrackFiles: (files) => set({ crackFiles: files }),
+  addCrackFile: (fileData) => set((state) => ({
+    crackFiles: [...state.crackFiles, { ...fileData, visible: true, id: fileData.id || (Date.now() + Math.random()) }]
+  })),
+  removeCrackFile: (id) => set((state) => ({
+    crackFiles: state.crackFiles.filter(f => f.id !== id)
+  })),
+  toggleCrackFile: (id) => set((state) => ({
+    crackFiles: state.crackFiles.map(f => f.id === id ? { ...f, visible: !f.visible } : f)
+  })),
+  clearCrackFiles: () => set({ crackFiles: [] }),
 
   // Pothole File Actions
   potholeFiles: [],
@@ -125,6 +142,11 @@ const useAppStore = create((set, get) => ({
             (p.upload_id === uploadId && p.id === detectionIdx)
               ? { ...p, is_hidden: isHidden }
               : p
+          ),
+          cracks: state.cracks.map(c =>
+            (c.upload_id === uploadId && c.id === detectionIdx)
+              ? { ...c, is_hidden: isHidden }
+              : c
           )
         }));
         return true;
@@ -154,7 +176,8 @@ const useAppStore = create((set, get) => ({
       if (response.status === 200) {
         // Immediately remove from local state
         set((state) => ({
-          potholes: state.potholes.filter(p => !(p.upload_id === uploadId && p.id === detectionIdx))
+          potholes: state.potholes.filter(p => !(p.upload_id === uploadId && p.id === detectionIdx)),
+          cracks: state.cracks.filter(c => !(c.upload_id === uploadId && c.id === detectionIdx))
         }));
         return true;
       } else {
@@ -171,8 +194,11 @@ const useAppStore = create((set, get) => ({
   resetData: () => set({
     vehicles: [],
     potholes: [],
+    cracks: [],
     pavement: [],
     iriFiles: [],
+    potholeFiles: [],
+    crackFiles: [],
     roiPolygon: null
   })
 }));

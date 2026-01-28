@@ -58,7 +58,7 @@ const getPotholeDiagnosis = (count, density) => {
 
 const Analytics = () => {
     const [activeTab, setActiveTab] = useState('iri');
-    const { iriFiles, potholeFiles, vehicleFiles, pavementFiles, roiPolygon } = useAppStore();
+    const { vehicles, potholes, cracks, pavement, iriFiles, potholeFiles, crackFiles, activeLayers, roiPolygon } = useAppStore();
     const { getToken } = useAuth();
 
     // --- Data Aggregation Logic ---
@@ -168,11 +168,13 @@ const Analytics = () => {
     const potholeAnalytics = useMemo(() => {
         if (!potholeFiles || potholeFiles.length === 0) return null;
 
-        const visibleFiles = potholeFiles.filter(f => f.visible);
-        if (visibleFiles.length === 0) return null;
+        const visiblePotholeFiles = potholeFiles.filter(f => f.visible);
+        const visibleCrackFiles = crackFiles.filter(f => f.visible);
+
+        if (visiblePotholeFiles.length === 0 && visibleCrackFiles.length === 0) return null;
 
         let allPotholes = [];
-        visibleFiles.forEach(f => {
+        [...visiblePotholeFiles, ...visibleCrackFiles].forEach(f => {
             if (f.data) {
                 // Apply ROI and Visibility filtering
                 const filtered = f.data.filter(p => {
@@ -246,7 +248,7 @@ const Analytics = () => {
             maxConfidence: (Math.max(...allPotholes.map(p => p.confidence)) * 100).toFixed(1),
             totalRepairCost
         };
-    }, [potholeFiles, roiPolygon]);
+    }, [potholeFiles, crackFiles, roiPolygon]);
 
 
     // 3. Traffic Aggregation

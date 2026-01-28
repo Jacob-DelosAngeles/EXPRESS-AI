@@ -145,6 +145,20 @@ const RedIcon = L.icon({
     popupAnchor: [0, -41]
 });
 
+// Orange marker icon for cracks
+const OrangeIcon = L.icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
+            <path fill="#f97316" stroke="#c2410c" stroke-width="1" d="M12.5 0C5.6 0 0 5.6 0 12.5c0 8.4 12.5 28.5 12.5 28.5S25 20.9 25 12.5C25 5.6 19.4 0 12.5 0z"/>
+            <circle cx="12.5" cy="12.5" r="6" fill="white"/>
+        </svg>
+    `),
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [0, -41]
+});
+
 // Helper to create Severe/Cost Icons
 const createSeverityIcon = (cost) => {
     let color = '#ef4444'; // Red (Default High)
@@ -271,7 +285,7 @@ const MapArea = () => {
     const [tempROIPoints, setTempROIPoints] = useState([]);
 
     const {
-        vehicles, potholes, pavement, iriFiles, activeLayers, mapStyle,
+        vehicles, potholes, cracks, pavement, iriFiles, activeLayers, mapStyle,
         setMapStyle, roiPolygon, setRoiPolygon, clearRoiPolygon,
         mapCenter, mapZoom
     } = useAppStore();
@@ -313,9 +327,17 @@ const MapArea = () => {
         return true;
     }), [potholes, roiPolygon]);
 
+    const filteredCracks = useMemo(() => (cracks || []).filter(c => {
+        if (c.is_hidden) return false;
+        if (roiPolygon && !isPointInPolygon([c.lat, c.lon], roiPolygon)) return false;
+        return true;
+    }), [cracks, roiPolygon]);
+
     const safeVehicles = useMemo(() => (vehicles || []).filter(v => v && typeof v.lat === 'number'), [vehicles]);
     const safePotholes = filteredPotholes; // Alias for readability in BudgetPanel
+    const safeCracks = filteredCracks;
     const allPotholesForMap = useMemo(() => (potholes || []), [potholes]);
+    const allCracksForMap = useMemo(() => (cracks || []), [cracks]);
 
     const safePavement = useMemo(() => (pavement || []).flatMap(p =>
         (p && p.points) ? p.points.map(pt => ({ lat: pt[0], lon: pt[1] })) : []
@@ -325,9 +347,9 @@ const MapArea = () => {
         (f.segments || []).filter(s => s && s.start_lat && s.start_lon).map(s => ({ lat: s.start_lat, lon: s.start_lon }))
     ), [iriFiles]);
 
-    const allPoints = useMemo(() => [...safeVehicles, ...safePotholes, ...safePavement, ...safeIri]
+    const allPoints = useMemo(() => [...safeVehicles, ...safePotholes, ...safeCracks, ...safePavement, ...safeIri]
         .filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && typeof p.lon === 'number' && !isNaN(p.lon))
-        , [safeVehicles, safePotholes, safePavement, safeIri]);
+        , [safeVehicles, safePotholes, safeCracks, safePavement, safeIri]);
 
     const getIriColor = (iri) => {
         if (iri <= 3) return '#16a34a'; // Green
@@ -362,9 +384,9 @@ const MapArea = () => {
                 <MapViewWatcher />
 
                 {/* Always pass all points (including hidden) for stable bounds calculation */}
-                {allPotholesForMap.length > 0 && (
+                {(allPotholesForMap.length > 0 || allCracksForMap.length > 0 || safeVehicles.length > 0) && (
                     <MapUpdater
-                        data={[...safeVehicles, ...allPotholesForMap, ...safePavement, ...safeIri]}
+                        data={[...safeVehicles, ...allPotholesForMap, ...allCracksForMap, ...safePavement, ...safeIri]}
                         isSelectingROI={isSelectingROI}
                     />
                 )}
@@ -437,9 +459,6 @@ const MapArea = () => {
 
                 {/* Potholes */}
                 {activeLayers.potholes && potholes.filter(p => {
-                    // Marker Visibility Logic:
-                    // 1. If hidden via button AND showHidden is OFF -> disappear
-                    // 2. If ROI active and outside -> disappear
                     if (p.is_hidden && !activeLayers.showHidden) return false;
                     if (roiPolygon && !isPointInPolygon([p.lat, p.lon], roiPolygon)) return false;
                     return true;
@@ -454,6 +473,25 @@ const MapArea = () => {
                             <PotholePopup pothole={p} />
                         </Popup>
                         <Tooltip>{p.tooltip}{p.is_hidden ? ' (HIDDEN)' : ''}</Tooltip>
+                    </Marker>
+                ))}
+
+                {/* Cracks */}
+                {activeLayers.cracks && cracks.filter(c => {
+                    if (c.is_hidden && !activeLayers.showHidden) return false;
+                    if (roiPolygon && !isPointInPolygon([c.lat, c.lon], roiPolygon)) return false;
+                    return true;
+                }).map((c, idx) => (
+                    <Marker
+                        key={`c-${idx}`}
+                        position={[c.lat, c.lon]}
+                        icon={OrangeIcon}
+                        opacity={c.is_hidden ? 0.3 : 1}
+                    >
+                        <Popup maxWidth={300}>
+                            <PotholePopup pothole={c} />
+                        </Popup>
+                        <Tooltip>{c.tooltip}{c.is_hidden ? ' (HIDDEN)' : ''}</Tooltip>
                     </Marker>
                 ))}
 
@@ -478,8 +516,8 @@ const MapArea = () => {
                     ) : null
                 ))}
                 {/* 3. Cost Heatmap Layer */}
-                {activeLayers.showCostHeatmap && safePotholes.length > 0 && (
-                    <CostHeatmapLayer potholes={safePotholes} />
+                {activeLayers.showCostHeatmap && (safePotholes.length > 0 || safeCracks.length > 0) && (
+                    <CostHeatmapLayer potholes={[...safePotholes, ...safeCracks]} />
                 )}
 
             </MapContainer>
@@ -487,7 +525,7 @@ const MapArea = () => {
             {/* 4. Budget Calculator Overlay */}
             {activeLayers.showBudgetCalculator && (
                 <BudgetPanel
-                    potholes={safePotholes}
+                    potholes={[...safePotholes, ...safeCracks]}
                     isSelectingROI={isSelectingROI}
                     setIsSelectingROI={setIsSelectingROI}
                     handleFinishROI={handleFinishROI}

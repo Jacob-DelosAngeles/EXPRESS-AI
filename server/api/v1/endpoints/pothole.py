@@ -100,23 +100,51 @@ async def process_pothole_data(
         from io import BytesIO
         df = pd.read_csv(BytesIO(content_bytes))
         
-        # Validate columns
-        required_columns = ['latitude', 'longitude', 'image_path', 'confidence_score']
-        missing_cols = [col for col in required_columns if col not in df.columns]
-        if missing_cols:
-            raise HTTPException(status_code=400, detail=f"Missing columns: {missing_cols}")
+        # Helper to find column variations
+        def get_col(candidates, df_cols):
+            for c in candidates:
+                if c in df_cols: return c
+                # Case-insensitive check
+                for actual in df_cols:
+                    if c.lower() == actual.lower(): return actual
+            return None
+
+        # Determine actual column names from variations
+        lat_col = get_col(['latitude', 'lat', 'lat_dec'], df.columns)
+        lon_col = get_col(['longitude', 'lon', 'lng', 'long', 'lon_dec'], df.columns)
+        conf_col = get_col(['confidence_score', 'confidence', 'conf', 'score'], df.columns)
+        path_col = get_col(['image_path', 'img_path', 'image', 'filename'], df.columns)
         
-        # 2. Fetch all detection images (pothole/crack) for proxy lookups
+        # Check for mandatory coordinate columns
+        if not lat_col or not lon_col:
+            missing = []
+            if not lat_col: missing.append('latitude')
+            if not lon_col: missing.append('longitude')
+            raise HTTPException(status_code=400, detail=f"Required coordinate columns missing: {missing}")
+        
+        # Confidence and Path are highly recommended but we can fallback
+        # (Though current logic depends on them, let's at least provide better errors)
+        if not conf_col or not path_col:
+            missing = []
+            if not conf_col: missing.append('confidence_score')
+            if not path_col: missing.append('image_path')
+            raise HTTPException(status_code=400, detail=f"Required detection columns missing: {missing}")
+        
+        # 2. Fetch all detection images for this user to ensure we find matches even if categories were mixed
         file_owner_id = upload_record.user_id
         image_records = db.query(UploadModel).filter(
             UploadModel.user_id == file_owner_id,
-            UploadModel.category == category, # Match the CSV category
-            UploadModel.file_type.in_(['jpg', 'jpeg', 'png']) 
+            UploadModel.file_type.in_(['jpg', 'jpeg', 'png', 'gif', 'bmp']) 
         ).all()
         
         # Create lookup dictionary: original_filename -> storage_path
-        # Use simple filename (basename) for matching just in case
-        image_map = {rec.original_filename: rec.storage_path for rec in image_records}
+        image_map = {}
+        for rec in image_records:
+            image_map[rec.original_filename] = rec.storage_path
+            # Also add basename as fallback if needed
+            base = os.path.basename(rec.original_filename)
+            if base not in image_map:
+                image_map[base] = rec.storage_path
         
         markers_data = []
         total_defect_area_m2 = 0.0
@@ -143,18 +171,21 @@ async def process_pothole_data(
                 # Check for hidden status (All users)
                 is_hidden = row_override.get("hidden", False)
 
-                lat = float(row['latitude'])
-                lon = float(row['longitude'])
+                lat = float(row[lat_col])
+                lon = float(row[lon_col])
+                confidence = float(row[conf_col])
+                image_ref = str(row[path_col])
                 
-                if math.isnan(lat) or math.isnan(lon):
+                if math.isnan(lat) or math.isnan(lon) or math.isnan(confidence):
+                    logger.warning(f"Skipping row {idx} due to NaN values: lat={lat}, lon={lon}, conf={confidence}")
                     continue
 
                 # Capture coordinate for distance calculation (Use all valid, non-deleted points)
                 # This ensures Road Length remains static even when hiding specific defects
                 valid_coords.append((lat, lon))
 
-                image_path = row['image_path'] # e.g. "frame_11030.jpg"
-                confidence = float(row['confidence_score'])
+                image_path = image_ref # e.g. "frame_11030.jpg"
+                # confidence is already float-converted above
                 
                 # Extract timestamp (case-insensitive check)
                 timestamp = None
@@ -172,11 +203,15 @@ async def process_pothole_data(
                 # Generate direct R2 URL (Presigned) to bypass backend proxy and save memory
                 storage_path = None
                 
-                if image_path in image_map:
+                # Match image by basename to handle path variations in CSV
+                img_basename = os.path.basename(image_path)
+                if img_basename in image_map:
+                    storage_path = image_map[img_basename]
+                elif image_path in image_map:
                     storage_path = image_map[image_path]
                 else:
-                    # Dynamic path logic
-                    storage_path = f"{file_owner_id}/{category}/{image_path}"
+                    # Dynamic path fallback
+                    storage_path = f"{file_owner_id}/{category}/{img_basename}"
                 
                 # Generate URL using the storage service (generates presigned URL for R2)
                 image_url = file_handler.storage.get_file_url(storage_path)

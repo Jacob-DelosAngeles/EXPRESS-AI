@@ -253,10 +253,11 @@ const LayerToggle = ({ label, active, onToggle, color }) => (
 
 const Sidebar = () => {
   const {
-    setVehicles, setPotholes, setPavement,
-    potholes,
+    setVehicles, setPotholes, setCracks, setPavement,
+    potholes, cracks,
     iriFiles, setIriFiles, addIriFile, toggleIriFile, removeIriFile, clearIriFiles,
     potholeFiles, setPotholeFiles, addPotholeFile, togglePotholeFile, removePotholeFile, clearPotholeFiles,
+    crackFiles, setCrackFiles, addCrackFile, toggleCrackFile, removeCrackFile, clearCrackFiles,
     vehicleFiles, setVehicleFiles, addVehicleFile, toggleVehicleFile, removeVehicleFile, clearVehicleFiles,
     pavementFiles, setPavementFiles, addPavementFile, togglePavementFile, removePavementFile, clearPavementFiles,
     activeLayers, toggleLayer
@@ -423,6 +424,14 @@ const Sidebar = () => {
     setPotholes(activeMarkers);
   }, [potholeFiles, setPotholes]);
 
+  // Sync Crack Files to Map Layer
+  useEffect(() => {
+    const activeMarkers = crackFiles
+      .filter(f => f.visible)
+      .flatMap(f => f.data || []);
+    setCracks(activeMarkers);
+  }, [crackFiles, setCracks]);
+
   // Sync Vehicle Files to Map Layer
   useEffect(() => {
     const activeMarkers = vehicleFiles
@@ -477,28 +486,36 @@ const Sidebar = () => {
           if (restoredIriFiles.length > 0) setIriFiles(restoredIriFiles);
         }
 
+        // 2. Restore Pothole & Crack Data
+        const [potholeRes, crackRes] = await Promise.all([
+          fileService.getUploadedFiles('pothole'),
+          fileService.getUploadedFiles('crack')
+        ]);
+
         // 2. Restore Pothole Data
-        const potholeRes = await fileService.getUploadedFiles('pothole');
         if (potholeRes.success && potholeRes.files) {
           const csvFiles = potholeRes.files.filter(f => f.filename.endsWith('.csv'));
-          const uniquePotholes = {};
-          csvFiles.forEach(f => { uniquePotholes[f.original_filename] = f; });
-
-          const restoredPotholeFiles = [];
-          for (const file of Object.values(uniquePotholes)) {
+          const restored = [];
+          for (const file of csvFiles) {
             try {
-              const processRes = await fileService.processPotholes(file.filename);
-              if (processRes.success) {
-                restoredPotholeFiles.push({
-                  id: file.id,
-                  filename: file.original_filename,
-                  data: processRes.data,
-                  visible: true
-                });
-              }
+              const res = await fileService.processPotholes(file.filename);
+              if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true });
             } catch (e) { console.error("Restore Pothole Error", e); }
           }
-          if (restoredPotholeFiles.length > 0) setPotholeFiles(restoredPotholeFiles);
+          if (restored.length > 0) setPotholeFiles(restored);
+        }
+
+        // 3. Restore Crack Data
+        if (crackRes.success && crackRes.files) {
+          const csvFiles = crackRes.files.filter(f => f.filename.endsWith('.csv'));
+          const restored = [];
+          for (const file of csvFiles) {
+            try {
+              const res = await fileService.processPotholes(file.filename);
+              if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true, category: 'crack' });
+            } catch (e) { console.error("Restore Crack Error", e); }
+          }
+          if (restored.length > 0) setCrackFiles(restored);
         }
 
         // 3. Restore Vehicle Data
@@ -596,6 +613,21 @@ const Sidebar = () => {
     }
   };
 
+  const handleDeleteCrack = async (id, e) => {
+    e.stopPropagation();
+    try {
+      const res = await fileService.deleteFile(id);
+      if (res.success) {
+        removeCrackFile(id);
+        setDeleteConfirm(null);
+      } else {
+        alert(res.message || 'Delete failed');
+      }
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  };
+
   const handleDeleteVehicle = async (id, e) => {
     e.stopPropagation();
     try {
@@ -681,8 +713,7 @@ const Sidebar = () => {
 
 
   // Updated to use DIRECT-TO-R2 upload for images (fast, parallel, no OOM!)
-  // CSV still goes through backend, but images upload directly to R2
-  const handlePotholeUpload = async (files, onProgress = null) => {
+  const handleDetectionUpload = async (category, files, onProgress = null) => {
     // files is now an array: [csv, ...images]
     const csvFile = files.find(f => f.name.toLowerCase().endsWith('.csv'));
     const imageFiles = files.filter(f => !f.name.toLowerCase().endsWith('.csv'));
@@ -691,29 +722,28 @@ const Sidebar = () => {
       throw new Error("No CSV file found in upload");
     }
 
-    // Step 1: Upload CSV through backend (still needed for processing)
-    console.log('Uploading CSV first...');
+    // Step 1: Upload CSV through backend
+    console.log(`Uploading ${category} CSV first...`);
     if (onProgress) onProgress({ phase: 'csv', current: 0, total: imageFiles.length });
 
-    const csvUploadRes = await fileService.uploadFile([csvFile], 'pothole');
+    const csvUploadRes = await fileService.uploadFile([csvFile], category);
 
     if (!csvUploadRes.success) {
       throw new Error(csvUploadRes.message || "CSV upload failed");
     }
 
     const csvResults = csvUploadRes.data || (Array.isArray(csvUploadRes) ? csvUploadRes : [csvUploadRes]);
-    const csvResult = csvResults.find(r => r.filename?.toLowerCase().endsWith('.csv') && r.success);
+    const csvResult = csvResults.find(r => (r.filename?.toLowerCase().endsWith('.csv') || r.original_filename?.toLowerCase().endsWith('.csv')) && r.success);
 
     if (!csvResult) {
       throw new Error("CSV upload failed or not found in response");
     }
 
-    // Step 2: Upload images DIRECTLY TO R2 (fast, bypasses backend!)
+    // Step 2: Upload images DIRECTLY TO R2
     if (imageFiles.length > 0) {
-      console.log(`Uploading ${imageFiles.length} images directly to R2...`);
+      console.log(`Uploading ${imageFiles.length} ${category} images directly to R2...`);
 
       try {
-        // Use the new direct-to-R2 upload method
         const directUploadProgress = (progress) => {
           if (onProgress) {
             if (progress.phase === 'presigning') {
@@ -726,34 +756,43 @@ const Sidebar = () => {
           }
         };
 
-        const uploadResult = await fileService.uploadDirectToR2(imageFiles, 'pothole', directUploadProgress);
+        const uploadResult = await fileService.uploadDirectToR2(imageFiles, category, directUploadProgress);
         console.log(`Direct R2 upload complete: ${uploadResult.success} succeeded, ${uploadResult.failed} failed`);
       } catch (directErr) {
         console.error('Direct R2 upload failed, falling back to backend upload:', directErr);
-        // Fallback to backend upload if direct upload fails
         for (let i = 0; i < imageFiles.length; i += 5) {
           const batch = imageFiles.slice(i, i + 5);
           if (onProgress) onProgress({ phase: 'images', current: i, total: imageFiles.length });
-          await fileService.uploadFile(batch, 'pothole');
+          await fileService.uploadFile(batch, category);
         }
       }
     }
 
-    // Step 3: Process the CSV to get pothole data
+    // Step 3: Process the CSV to get data
     if (onProgress) onProgress({ phase: 'processing', current: 0, total: 0 });
 
     const processRes = await fileService.processPotholes(csvResult.filename);
     if (processRes.success) {
-      addPotholeFile({
+      const payload = {
         id: csvResult.id || Date.now(),
-        filename: csvResult.original_filename || csvResult.filename,
+        filename: csvFile.name,
         data: processRes.data,
-        visible: true
-      });
+        visible: true,
+        category: category
+      };
+
+      if (category === 'crack') {
+        addCrackFile(payload);
+      } else {
+        addPotholeFile(payload);
+      }
     } else {
       throw new Error(processRes.message);
     }
   };
+
+  const handlePotholeUpload = (files, onProgress) => handleDetectionUpload('pothole', files, onProgress);
+  const handleCrackUpload = (files, onProgress) => handleDetectionUpload('crack', files, onProgress);
 
   const handlePavementUpload = async (file) => {
     const res = await fileService.uploadFile(file, 'pavement');
@@ -850,6 +889,12 @@ const Sidebar = () => {
             title="Pothole Detection Data"
             icon={AlertTriangle}
             onUpload={handlePotholeUpload}
+          />
+
+          <PotholeUploadSection
+            title="Crack Detection Data"
+            icon={Activity}
+            onUpload={handleCrackUpload}
           />
 
           <UploadSection
@@ -992,6 +1037,52 @@ const Sidebar = () => {
                         {deleteConfirm === file.id ? (
                           <button
                             onClick={(e) => handleDeletePothole(file.id, e)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                          >
+                            Confirm
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); setTimeout(() => setDeleteConfirm(null), 3000); }}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Delete file"
+                          >
+                            <Trash size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <LayerToggle
+                label="Cracks"
+                active={activeLayers.cracks}
+                onToggle={() => toggleLayer('cracks')}
+                color="bg-orange-500"
+              />
+
+              {/* Individual Crack Files */}
+              {activeLayers.cracks && crackFiles.length > 0 && (
+                <div className="mt-2 space-y-2 mb-4">
+                  {crackFiles.map(file => (
+                    <div key={file.id} className="ml-4 pl-2 border-l-2 border-orange-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={file.visible}
+                            onChange={() => toggleCrackFile(file.id)}
+                            className="h-3 w-3 text-orange-600 rounded focus:ring-orange-500 mr-2"
+                          />
+                          <span className="text-xs font-medium text-gray-700 truncate w-24" title={file.filename}>
+                            {file.filename}
+                          </span>
+                        </div>
+                        {deleteConfirm === file.id ? (
+                          <button
+                            onClick={(e) => handleDeleteCrack(file.id, e)}
                             className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
                           >
                             Confirm
