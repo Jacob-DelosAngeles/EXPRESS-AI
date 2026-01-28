@@ -39,14 +39,22 @@ async def compute_iri(
     result = None
     
     try:
-        # 1. Find the file in the database - ALL users see shared data
-        upload_record = db.query(UploadModel).filter(
-            UploadModel.file_type == 'csv',
-            (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
-        ).order_by(UploadModel.upload_date.desc()).first()
+        # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
+        upload_record = None
+        if filename.isdigit():
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.id == int(filename)
+            ).first()
+        
+        if not upload_record:
+            # Fallback to unique filename (UUID part) ONLY
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.file_type == 'csv',
+                UploadModel.filename == filename
+            ).order_by(UploadModel.upload_date.desc()).first()
 
         if not upload_record:
-            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+            raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
 
         # Use storage path from DB record
         storage_path = upload_record.storage_path
@@ -95,14 +103,22 @@ async def get_cached_iri(
     """
     import json
     
-    # Find the file record (shared data model - all users can see)
-    upload_record = db.query(UploadModel).filter(
-        UploadModel.file_type == 'csv',
-        (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
-    ).order_by(UploadModel.upload_date.desc()).first()
+    # Find the file record (Strict ID lookup for 100% collision prevention)
+    upload_record = None
+    if filename.isdigit():
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.id == int(filename)
+        ).first()
     
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        # Fallback to unique filename (UUID part) ONLY
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.file_type == 'csv',
+            UploadModel.filename == filename
+        ).order_by(UploadModel.upload_date.desc()).first()
+    
+    if not upload_record:
+        raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
     
     # Return cached data if available
     if upload_record.cached_data:

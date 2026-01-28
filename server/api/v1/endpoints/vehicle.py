@@ -45,15 +45,24 @@ async def process_vehicle_data(
     Uses caching for fast repeat requests.
     - All users can view shared data (read-only for non-admins)
     """
-    # Find the file in the database - ALL users see shared data
-    upload_record = db.query(UploadModel).filter(
-        UploadModel.category == 'vehicle',
-        UploadModel.file_type == 'csv',
-        (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
-    ).order_by(UploadModel.upload_date.desc()).first()
+    # Find the file in the database (Strict ID lookup for 100% collision prevention)
+    upload_record = None
+    if filename.isdigit():
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.id == int(filename),
+            UploadModel.user_id == current_user.id
+        ).first()
+    
+    if not upload_record:
+        # Fallback to unique filename (UUID part) ONLY
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.user_id == current_user.id,
+            UploadModel.filename == filename,
+            UploadModel.category == 'vehicle'
+        ).order_by(UploadModel.upload_date.desc()).first()
 
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
 
     # ============================================
     # CACHE CHECK - Return cached data if available

@@ -43,15 +43,25 @@ async def process_pothole_data(
     Uses caching for fast repeat requests.
     - All users can view shared data (read-only for non-admins)
     """
-    # 1. Find the file in the database (Supports pothole AND crack categories)
-    upload_record = db.query(UploadModel).filter(
-        UploadModel.category.in_(['pothole', 'crack']),
-        UploadModel.file_type == 'csv',
-        (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
-    ).order_by(UploadModel.upload_date.desc()).first()
+    # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
+    # If filename is a number, treat as ID, otherwise search by storage_path/filename
+    upload_record = None
+    if filename.isdigit():
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.id == int(filename),
+            UploadModel.user_id == current_user.id
+        ).first()
     
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        # Fallback to unique filename (UUID part) ONLY - do NOT match original_filename anymore
+        # as it is not unique across batches.
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.user_id == current_user.id,
+            UploadModel.filename == filename
+        ).order_by(UploadModel.upload_date.desc()).first()
+    
+    if not upload_record:
+        raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
 
     category = upload_record.category # 'pothole' or 'crack'
     

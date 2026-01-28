@@ -463,7 +463,7 @@ const Sidebar = () => {
           for (const file of filesToRestore) {
             try {
               // Use cached IRI data for instant load
-              const computeRes = await fileService.getCachedIRI(file.filename);
+              const computeRes = await fileService.getCachedIRI(file.id);
               if (computeRes.success) {
                 restoredIriFiles.push({
                   id: file.id,
@@ -498,7 +498,7 @@ const Sidebar = () => {
           const restored = [];
           for (const file of csvFiles) {
             try {
-              const res = await fileService.processPotholes(file.filename);
+              const res = await fileService.processPotholes(file.id);
               if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true });
             } catch (e) { console.error("Restore Pothole Error", e); }
           }
@@ -511,7 +511,7 @@ const Sidebar = () => {
           const restored = [];
           for (const file of csvFiles) {
             try {
-              const res = await fileService.processPotholes(file.filename);
+              const res = await fileService.processPotholes(file.id);
               if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true, category: 'crack' });
             } catch (e) { console.error("Restore Crack Error", e); }
           }
@@ -527,7 +527,7 @@ const Sidebar = () => {
           const restoredVehicleFiles = [];
           for (const file of Object.values(uniqueVehicles)) {
             try {
-              const processRes = await fileService.processVehicles(file.filename);
+              const processRes = await fileService.processVehicles(file.id);
               if (processRes.success) {
                 restoredVehicleFiles.push({
                   id: file.id,
@@ -550,7 +550,7 @@ const Sidebar = () => {
           const restoredPavementFiles = [];
           for (const file of Object.values(uniquePavement)) {
             try {
-              const processRes = await fileService.processPavement(file.filename);
+              const processRes = await fileService.processPavement(file.id);
               if (processRes.success) {
                 restoredPavementFiles.push({
                   id: file.id,
@@ -669,7 +669,7 @@ const Sidebar = () => {
       const filename = result.filename;
 
       // Use cached IRI data (already processed during upload)
-      const computeRes = await fileService.getCachedIRI(filename);
+      const computeRes = await fileService.getCachedIRI(result.id);
       if (computeRes.success) {
         addIriFile({
           id: result.id, // Use real DB ID
@@ -699,7 +699,7 @@ const Sidebar = () => {
       const result = res.data ? ((Array.isArray(res.data)) ? res.data[0] : res.data) : res;
       if (!result || !result.filename) throw new Error("Invalid response format from server");
 
-      const processRes = await fileService.processVehicles(result.filename);
+      const processRes = await fileService.processVehicles(result.id);
       if (processRes.success) {
         addVehicleFile({
           id: result.id, // Use real DB ID
@@ -771,7 +771,7 @@ const Sidebar = () => {
     // Step 3: Process the CSV to get data
     if (onProgress) onProgress({ phase: 'processing', current: 0, total: 0 });
 
-    const processRes = await fileService.processPotholes(csvResult.filename);
+    const processRes = await fileService.processPotholes(csvResult.id);
     if (processRes.success) {
       const payload = {
         id: csvResult.id || Date.now(),
@@ -800,7 +800,7 @@ const Sidebar = () => {
       const result = res.data ? ((Array.isArray(res.data)) ? res.data[0] : res.data) : res;
       if (!result || !result.filename) throw new Error("Invalid response format from server");
 
-      const processRes = await fileService.processPavement(result.filename);
+      const processRes = await fileService.processPavement(result.id);
       if (processRes.success) {
         addPavementFile({
           id: result.id, // Use real DB ID

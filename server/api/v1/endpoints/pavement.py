@@ -44,15 +44,22 @@ async def process_pavement_data(
     Uses shared data model (all users see all pavement data).
     Includes caching for instant retrieval after first processing.
     """
-    # 1. Find the file in the database (SHARED DATA MODEL - no user_id filter)
-    upload_record = db.query(UploadModel).filter(
-        UploadModel.category == 'pavement',
-        UploadModel.file_type == 'csv',
-        (UploadModel.filename == filename) | (UploadModel.original_filename == filename)
-    ).order_by(UploadModel.upload_date.desc()).first()
+    # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
+    upload_record = None
+    if filename.isdigit():
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.id == int(filename)
+        ).first()
+    
+    if not upload_record:
+        # Fallback to unique filename (UUID part) ONLY
+        upload_record = db.query(UploadModel).filter(
+            UploadModel.filename == filename,
+            UploadModel.category == 'pavement'
+        ).order_by(UploadModel.upload_date.desc()).first()
 
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
 
     # 2. Check cache first (INSTANT return if available)
     if upload_record.cached_data:
