@@ -58,7 +58,11 @@ const getPotholeDiagnosis = (count, density) => {
 
 const Analytics = () => {
     const [activeTab, setActiveTab] = useState('iri');
-    const { vehicles, potholes, cracks, pavement, iriFiles, potholeFiles, crackFiles, activeLayers, roiPolygon } = useAppStore();
+    const {
+        vehicles, potholes, cracks, pavement,
+        iriFiles, potholeFiles, crackFiles, vehicleFiles, pavementFiles,
+        activeLayers, roiPolygon
+    } = useAppStore();
     const { getToken } = useAuth();
 
     // --- Data Aggregation Logic ---
