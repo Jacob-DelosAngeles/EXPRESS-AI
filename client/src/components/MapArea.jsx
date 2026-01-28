@@ -263,16 +263,23 @@ const MapUpdater = ({ data, isSelectingROI }) => {
 // Component to capture and save map view state
 const MapViewWatcher = () => {
     const map = useMap();
-    const { setMapView } = useAppStore();
+    const { setMapView, mapCenter, mapZoom } = useAppStore();
+    const hasInit = React.useRef(false);
 
     useMapEvents({
         moveend: () => {
             const center = map.getCenter();
-            setMapView([center.lat, center.lng], map.getZoom());
-        },
-        zoomend: () => {
-            const center = map.getCenter();
-            setMapView([center.lat, center.lng], map.getZoom());
+            const currentZoom = map.getZoom();
+
+            // Significant move check (prevents micro-update loops)
+            const distThreshold = 0.0001;
+            const hasMoved = Math.abs(center.lat - mapCenter[0]) > distThreshold ||
+                Math.abs(center.lng - mapCenter[1]) > distThreshold;
+            const hasZoomed = Math.abs(currentZoom - mapZoom) > 0.01;
+
+            if (hasMoved || hasZoomed) {
+                setMapView([center.lat, center.lng], currentZoom);
+            }
         }
     });
 

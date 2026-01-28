@@ -147,6 +147,23 @@ const useAppStore = create((set, get) => ({
             (c.upload_id === uploadId && c.id === detectionIdx)
               ? { ...c, is_hidden: isHidden }
               : c
+          ),
+          // SYNC TO FILE OBJECTS (Crucial for Sidebar consistency)
+          potholeFiles: state.potholeFiles.map(f =>
+            f.id === uploadId
+              ? {
+                ...f,
+                data: f.data.map(p => p.id === detectionIdx ? { ...p, is_hidden: isHidden } : p)
+              }
+              : f
+          ),
+          crackFiles: state.crackFiles.map(f =>
+            f.id === uploadId
+              ? {
+                ...f,
+                data: f.data.map(c => c.id === detectionIdx ? { ...c, is_hidden: isHidden } : c)
+              }
+              : f
           )
         }));
         return true;
@@ -177,7 +194,18 @@ const useAppStore = create((set, get) => ({
         // Immediately remove from local state
         set((state) => ({
           potholes: state.potholes.filter(p => !(p.upload_id === uploadId && p.id === detectionIdx)),
-          cracks: state.cracks.filter(c => !(c.upload_id === uploadId && c.id === detectionIdx))
+          cracks: state.cracks.filter(c => !(c.upload_id === uploadId && c.id === detectionIdx)),
+          // SYNC TO FILE OBJECTS (Crucial for Sidebar consistency)
+          potholeFiles: state.potholeFiles.map(f =>
+            f.id === uploadId
+              ? { ...f, data: f.data.filter(p => p.id !== detectionIdx) }
+              : f
+          ),
+          crackFiles: state.crackFiles.map(f =>
+            f.id === uploadId
+              ? { ...f, data: f.data.filter(c => c.id !== detectionIdx) }
+              : f
+          )
         }));
         return true;
       } else {
