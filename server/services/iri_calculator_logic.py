@@ -235,21 +235,21 @@ class IRICalculator:
         time_array = df_filtered['time'].values
         distance = cumulative_trapezoid(speed, time_array, initial = 0)
 
-        # Segmentation of data
+        # Segmentation of data (now includes pre-computed IRI values)
         segments = self._create_segments(distance, vertical_accel_corrected, speed, segment_length)
 
-        # Calculation of IRI for each segment
-        iri_values = []
-        for segment in segments:
-            iri, speed = self._calculate_segment_iri(segment)
-            iri_values.append(iri)
+        # Extract IRI values from segments (already computed inline for memory efficiency)
+        iri_values = [segment['iri_value'] for segment in segments]
 
         return iri_values, segments, sampling_rate, speed
 
-    #Create Segments of specified length
+    #Create Segments of specified length - MEMORY OPTIMIZED
     def _create_segments(self, distance, vertical_accel, speed, segment_length):
         segments = []
         max_distance = distance[-1]
+        
+        # IRI calibration constant
+        K = 80.59
 
         # Inclusive loop: ensures we get at least one segment even if max_distance < segment_length
         for start_dist in np.arange(0, max_distance, segment_length):
@@ -273,15 +273,26 @@ class IRICalculator:
                     else:
                         continue
                 
+                # MEMORY OPTIMIZATION: Compute IRI inline, don't store numpy arrays
+                segment_accel = vertical_accel[start_idx:end_idx]
+                segment_speed = speed[start_idx:end_idx]
+                
+                rms_accel = float(np.sqrt(np.mean(segment_accel ** 2)))
+                mean_speed = float(np.mean(segment_speed))
+                
+                # IRI formula
+                iri_value = (K * rms_accel / mean_speed) if mean_speed > 0 else 0.0
+                
                 segment = {
                     'distance_start': start_dist,
                     'distance_end': end_dist,
-                    'vertical_accel': vertical_accel[start_idx:end_idx],
-                    'speed': speed[start_idx:end_idx],
                     'length': end_dist - start_dist,
-                    'center_index': start_idx + (end_idx - start_idx) // 2,
                     'start_index': start_idx,
-                    'end_index': end_idx
+                    'end_index': end_idx,
+                    # Pre-computed scalar values (memory efficient)
+                    'iri_value': iri_value,
+                    'rms_accel': rms_accel,
+                    'mean_speed': mean_speed
                 }
                 segments.append(segment)
 

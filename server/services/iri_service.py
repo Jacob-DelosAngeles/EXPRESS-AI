@@ -95,8 +95,8 @@ class IRIService:
                     distance_end=float(segment['distance_end']),
                     segment_length=float(segment['length']),
                     iri_value=float(iri_val),
-                    mean_speed=float(np.mean(segment['speed'])),
-                    rms_accel=float(np.sqrt(np.mean(segment['vertical_accel']**2))),
+                    mean_speed=float(segment['mean_speed']),  # Use pre-computed value
+                    rms_accel=float(segment['rms_accel']),    # Use pre-computed value
                     start_lat=start_lat,
                     start_lon=start_lon,
                     end_lat=end_lat,
