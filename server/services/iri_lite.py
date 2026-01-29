@@ -68,9 +68,18 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
         df = pd.read_csv(file_obj, usecols=usecols)
         logger.info(f"Loaded {len(df)} rows")
         
-        # Preprocess time
-        df['time'] = pd.to_datetime(df['time']).astype('int64') / 1e9
-        df['time'] = df['time'] - df['time'].iloc[0]
+        # Preprocess time - Handle both ISO datetime strings AND numeric elapsed seconds
+        time_col = df['time']
+        if pd.api.types.is_numeric_dtype(time_col):
+            # Already in seconds (elapsed time) - use directly
+            df['time'] = pd.to_numeric(df['time'], errors='coerce')
+            df['time'] = df['time'] - df['time'].iloc[0]
+            logger.info("Time format: Numeric seconds (elapsed)")
+        else:
+            # ISO datetime string - convert to unix timestamp
+            df['time'] = pd.to_datetime(df['time']).astype('int64') / 1e9
+            df['time'] = df['time'] - df['time'].iloc[0]
+            logger.info("Time format: ISO datetime string")
         
         # Convert columns to numeric
         for col in ['ax', 'ay', 'az']:

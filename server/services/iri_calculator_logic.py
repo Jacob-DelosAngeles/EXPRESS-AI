@@ -45,9 +45,15 @@ class IRICalculator:
         # Creating a standardized dataframe
         processed_df = pd.DataFrame()
 
-        # Handle Time - Convert Iso timestamp format to Unix timestamp format
+        # Handle Time - Support both ISO timestamp AND numeric elapsed seconds
         if 'time' in df.columns:
-            processed_df['time'] = pd.to_datetime(df['time']).astype('int64')/1e9 # Convert to seconds
+            time_col = df['time']
+            if pd.api.types.is_numeric_dtype(time_col):
+                # Already in seconds (elapsed time) - use directly
+                processed_df['time'] = pd.to_numeric(df['time'], errors='coerce')
+            else:
+                # ISO datetime string - convert to unix timestamp
+                processed_df['time'] = pd.to_datetime(df['time']).astype('int64')/1e9
 
             # Subtract each row to the first to start from 0
             processed_df['time'] = processed_df['time'] - processed_df['time'].iloc[0]
