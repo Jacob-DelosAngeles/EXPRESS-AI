@@ -100,8 +100,8 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
                     parsed = pd.to_datetime(df['time'])
                     logger.info("Time format: ISO datetime string (naive)")
                 
-                # Convert to seconds since epoch
-                df['time'] = parsed.view('int64') / 1e9
+                # Convert to seconds since epoch (pandas 3.0+ compatible)
+                df['time'] = parsed.astype('int64') / 1e9
                 df['time'] = df['time'] - df['time'].iloc[0]
             except Exception as e:
                 logger.error(f"Time parsing failed: {e}")
