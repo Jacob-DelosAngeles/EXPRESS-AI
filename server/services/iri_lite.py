@@ -102,7 +102,13 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
         
         # Compute sampling rate
         time_diff = np.diff(df['time'].values)
-        sampling_rate = 1.0 / np.median(time_diff)
+        median_diff = np.median(time_diff)
+        sampling_rate = 1.0 / median_diff if median_diff > 0 else 0
+        
+        # Debug logging for production investigation
+        logger.info(f"Time column first 5 values: {df['time'].head(5).tolist()}")
+        logger.info(f"Time diff first 5 values: {time_diff[:5].tolist() if len(time_diff) >= 5 else time_diff.tolist()}")
+        logger.info(f"Median time diff: {median_diff:.8f} seconds")
         logger.info(f"Sampling rate: {sampling_rate:.2f} Hz")
         
         # Filter accelerometer data (use az as vertical)
