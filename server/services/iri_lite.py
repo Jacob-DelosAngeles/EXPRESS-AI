@@ -68,18 +68,44 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
         df = pd.read_csv(file_obj, usecols=usecols)
         logger.info(f"Loaded {len(df)} rows")
         
-        # Preprocess time - Handle both ISO datetime strings AND numeric elapsed seconds
+        # Preprocess time - Handle multiple formats:
+        # 1. Numeric seconds (already float/int dtype)
+        # 2. Numeric seconds as strings ("0.000", "0.010", ...)
+        # 3. ISO datetime strings ("2026-01-30T08:00:00" or "2026-01-30T08:00:00Z")
+        logger.info(f"Pandas version: {pd.__version__}")
         time_col = df['time']
-        if pd.api.types.is_numeric_dtype(time_col):
-            # Already in seconds (elapsed time) - use directly
-            df['time'] = pd.to_numeric(df['time'], errors='coerce')
+        logger.info(f"Time column dtype: {time_col.dtype}, first value: {time_col.iloc[0]}")
+        
+        # Try to convert to numeric first (handles both numeric dtype AND numeric strings)
+        time_numeric = pd.to_numeric(time_col, errors='coerce')
+        numeric_ratio = time_numeric.notna().sum() / len(time_numeric)
+        logger.info(f"Numeric conversion success ratio: {numeric_ratio:.2%}")
+        
+        if numeric_ratio > 0.9:
+            # 90%+ values are numeric - use as elapsed seconds
+            df['time'] = time_numeric
             df['time'] = df['time'] - df['time'].iloc[0]
-            logger.info("Time format: Numeric seconds (elapsed)")
+            logger.info("Time format: Numeric seconds (direct or from string)")
         else:
-            # ISO datetime string - convert to unix timestamp
-            df['time'] = pd.to_datetime(df['time']).astype('int64') / 1e9
-            df['time'] = df['time'] - df['time'].iloc[0]
-            logger.info("Time format: ISO datetime string")
+            # Fallback to ISO datetime string parsing
+            try:
+                # Check if timestamps have timezone indicator (Z or +00:00)
+                first_val = str(time_col.iloc[0])
+                if 'Z' in first_val or '+' in first_val or '-' in first_val[10:]:  # Avoid matching date dashes
+                    # Timezone-aware: use utc=True for consistent parsing
+                    parsed = pd.to_datetime(df['time'], utc=True)
+                    logger.info("Time format: ISO datetime string (timezone-aware, using UTC)")
+                else:
+                    # Naive datetime
+                    parsed = pd.to_datetime(df['time'])
+                    logger.info("Time format: ISO datetime string (naive)")
+                
+                # Convert to seconds since epoch
+                df['time'] = parsed.view('int64') / 1e9
+                df['time'] = df['time'] - df['time'].iloc[0]
+            except Exception as e:
+                logger.error(f"Time parsing failed: {e}")
+                return {'success': False, 'message': 'Failed to parse time column', 'segments': []}
         
         # Convert columns to numeric
         for col in ['ax', 'ay', 'az']:
