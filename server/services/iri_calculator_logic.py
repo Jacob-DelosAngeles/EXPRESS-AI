@@ -59,8 +59,16 @@ class IRICalculator:
                 # 90%+ values are numeric - use as elapsed seconds
                 processed_df['time'] = time_numeric
             else:
-                # Fallback to ISO datetime string parsing
-                processed_df['time'] = pd.to_datetime(df['time']).astype('int64')/1e9
+                # Fallback to ISO datetime string parsing (pandas 3.0+ compatible)
+                first_val = str(time_col.iloc[0])
+                if 'Z' in first_val or '+' in first_val or '-' in first_val[10:]:
+                    parsed = pd.to_datetime(df['time'], utc=True)
+                else:
+                    parsed = pd.to_datetime(df['time'])
+                
+                # Convert to seconds using explicit epoch subtraction (works on all pandas versions)
+                epoch = pd.Timestamp('1970-01-01', tz='UTC') if parsed.dt.tz else pd.Timestamp('1970-01-01')
+                processed_df['time'] = (parsed - epoch).dt.total_seconds()
 
             # Subtract each row to the first to start from 0
             processed_df['time'] = processed_df['time'] - processed_df['time'].iloc[0]
