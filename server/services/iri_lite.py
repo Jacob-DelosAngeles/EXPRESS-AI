@@ -187,16 +187,33 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
                 else:
                     continue
             
-            # Calculate IRI for segment
+            # Calculate IRI for segment - SPEED-AWARE VERSION
             segment_accel = vertical_accel[start_idx:end_idx]
             segment_speed = speed[start_idx:end_idx]
             
             rms_accel = np.sqrt(np.mean(segment_accel ** 2))
             mean_speed = np.mean(segment_speed)
             
-            # IRI formula: K * RMS_accel / speed
-            K = 80.59
-            iri_value = (K * rms_accel / mean_speed) if mean_speed > 0 else 0
+            # Speed-aware IRI constants (must match iri_calculator_logic.py)
+            K = 80.59           # Calibration constant
+            MIN_VALID_SPEED = 5.0   # m/s (~18 km/h)
+            REFERENCE_SPEED = 10.0  # m/s (~36 km/h)
+            SPEED_EXPONENT = 0.9    # Damped exponent (was 1.0)
+            MAX_IRI_CAP = 16.0      # m/km cap for low-speed
+            
+            # Speed-aware IRI calculation
+            if mean_speed >= MIN_VALID_SPEED:
+                # Normal calculation with damped speed exponent
+                iri_value = K * rms_accel / (mean_speed ** SPEED_EXPONENT)
+                speed_flag = 'normal'
+            elif mean_speed > 0:
+                # Low-speed: extrapolate to reference speed and cap
+                extrapolated_iri = K * rms_accel / (REFERENCE_SPEED ** SPEED_EXPONENT)
+                iri_value = min(extrapolated_iri, MAX_IRI_CAP)
+                speed_flag = 'low_speed'
+            else:
+                iri_value = 0
+                speed_flag = 'stopped'
             
             # Get GPS coordinates
             start_lat, start_lon, end_lat, end_lon = None, None, None, None
@@ -214,6 +231,7 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
                 'iri_value': round(iri_value, 2),
                 'color': get_iri_color(iri_value),
                 'mean_speed': round(mean_speed, 2),
+                'speed_flag': speed_flag,  # NEW: for frontend dashed line display
                 'distance_start': round(start_dist, 1),
                 'distance_end': round(end_dist, 1)
             })

@@ -12,6 +12,13 @@ warnings.filterwarnings('ignore')
 
 
 class IRICalculator:
+    
+    # Speed-aware IRI calculation constants
+    MIN_VALID_SPEED = 5.0       # m/s (~18 km/h) - Below this, flag as low-speed
+    REFERENCE_SPEED = 10.0      # m/s (~36 km/h) - Used for extrapolation
+    SPEED_EXPONENT = 0.9        # Damped exponent (was 1.0) - 0.9 for mild correction
+    MAX_IRI_CAP = 16.0          # m/km - Maximum IRI for low-speed segments
+    K = 80.59                   # Calibration constant
 
     # Initialization
     def __init__(self):
@@ -264,13 +271,10 @@ class IRICalculator:
 
         return iri_values, segments, sampling_rate, speed
 
-    #Create Segments of specified length - MEMORY OPTIMIZED
+    #Create Segments of specified length - MEMORY OPTIMIZED with SPEED-AWARE IRI
     def _create_segments(self, distance, vertical_accel, speed, segment_length):
         segments = []
         max_distance = distance[-1]
-        
-        # IRI calibration constant
-        K = 80.59
 
         # Inclusive loop: ensures we get at least one segment even if max_distance < segment_length
         for start_dist in np.arange(0, max_distance, segment_length):
@@ -301,8 +305,21 @@ class IRICalculator:
                 rms_accel = float(np.sqrt(np.mean(segment_accel ** 2)))
                 mean_speed = float(np.mean(segment_speed))
                 
-                # IRI formula
-                iri_value = (K * rms_accel / mean_speed) if mean_speed > 0 else 0.0
+                # SPEED-AWARE IRI CALCULATION
+                if mean_speed >= self.MIN_VALID_SPEED:
+                    # Normal calculation with damped speed exponent
+                    iri_value = self.K * rms_accel / (mean_speed ** self.SPEED_EXPONENT)
+                    speed_flag = 'normal'
+                elif mean_speed > 0:
+                    # Low-speed segment: extrapolate what IRI would be at reference speed
+                    extrapolated_iri = self.K * rms_accel / (self.REFERENCE_SPEED ** self.SPEED_EXPONENT)
+                    # Cap to prevent unrealistic values
+                    iri_value = min(extrapolated_iri, self.MAX_IRI_CAP)
+                    speed_flag = 'low_speed'
+                else:
+                    # Vehicle stopped - minimal reliable data
+                    iri_value = 0.0
+                    speed_flag = 'stopped'
                 
                 segment = {
                     'distance_start': start_dist,
@@ -313,14 +330,15 @@ class IRICalculator:
                     # Pre-computed scalar values (memory efficient)
                     'iri_value': iri_value,
                     'rms_accel': rms_accel,
-                    'mean_speed': mean_speed
+                    'mean_speed': mean_speed,
+                    'speed_flag': speed_flag,  # 'normal', 'low_speed', or 'stopped'
                 }
                 segments.append(segment)
 
         return segments
     
 
-    # Computation of IRI per segment(100 meters)
+    # Computation of IRI per segment(100 meters) - SPEED-AWARE VERSION
     def _calculate_segment_iri(self, segment):
         vertical_accel = segment['vertical_accel']
         mean_speed = np.mean(segment['speed'])
@@ -328,20 +346,22 @@ class IRICalculator:
         # Calculate RMS acceleration
         rms_accel = np.sqrt(np.mean(vertical_accel**2))
 
-        # Convert to IRI with empirical relationship
-        # IRI = K * (RMS_accel)^n / speed^m
-        # Values below are approximate coefficients and needs calibration
-
-        K = 80.59 # Calibration constant
-        n = 1  # Acceleration exponent
-        m = 1 # Speed Exponent
-
-        if mean_speed > 0:
-            iri = K*(rms_accel**n) / (mean_speed**m)
+        # SPEED-AWARE IRI CALCULATION
+        # Uses damped speed exponent to reduce sensitivity at varying speeds
+        if mean_speed >= self.MIN_VALID_SPEED:
+            # Normal calculation with damped speed exponent
+            iri = self.K * rms_accel / (mean_speed ** self.SPEED_EXPONENT)
+            speed_flag = 'normal'
+        elif mean_speed > 0:
+            # Low-speed: extrapolate to reference speed and cap
+            extrapolated_iri = self.K * rms_accel / (self.REFERENCE_SPEED ** self.SPEED_EXPONENT)
+            iri = min(extrapolated_iri, self.MAX_IRI_CAP)
+            speed_flag = 'low_speed'
         else:
-            iri = 0 
+            iri = 0
+            speed_flag = 'stopped'
 
-        return iri, mean_speed
+        return iri, mean_speed, speed_flag
 
     # Plotting the Results
     def plot_results(self, df, iri_values, segments):

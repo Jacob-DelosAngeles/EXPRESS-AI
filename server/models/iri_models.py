@@ -10,6 +10,7 @@ class IRISegment(BaseModel):
     iri_value: float
     mean_speed: float
     rms_accel: float
+    speed_flag: str = "normal"  # 'normal', 'low_speed', or 'stopped'
     start_lat: Optional[float] = None
     start_lon: Optional[float] = None
     end_lat: Optional[float] = None

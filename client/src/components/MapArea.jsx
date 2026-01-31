@@ -415,6 +415,9 @@ const MapArea = () => {
                             return isPointInPolygon([seg.start_lat, seg.start_lon], roiPolygon);
                         }).map((seg, idx) => {
                             if (seg.start_lat && seg.start_lon && seg.end_lat && seg.end_lon) {
+                                // Determine if this is a low-speed segment
+                                const isLowSpeed = seg.speed_flag === 'low_speed' || seg.speed_flag === 'stopped';
+
                                 return (
                                     <Polyline
                                         key={`iri-${file.id}-${file.segmentLength || 'default'}-${idx}-${seg.iri_value}`}
@@ -424,7 +427,8 @@ const MapArea = () => {
                                         ]}
                                         color={getIriColor(seg.iri_value)}
                                         weight={6}
-                                        opacity={0.8}
+                                        opacity={isLowSpeed ? 0.6 : 0.8}
+                                        dashArray={isLowSpeed ? "8, 8" : null}
                                     >
                                         <Tooltip sticky>
                                             <div className="text-center">
@@ -435,6 +439,14 @@ const MapArea = () => {
                                                         seg.iri_value <= 5 ? 'Fair' :
                                                             seg.iri_value <= 7 ? 'Poor' : 'Bad'
                                                 }</div>
+                                                <div className="text-xs text-gray-500">
+                                                    Speed: {seg.mean_speed?.toFixed(1) || '?'} m/s
+                                                </div>
+                                                {isLowSpeed && (
+                                                    <div className="text-xs text-amber-600 font-semibold mt-1">
+                                                        ⚠️ Low Speed ({seg.speed_flag === 'stopped' ? 'Stopped' : 'Intersection'})
+                                                    </div>
+                                                )}
                                             </div>
                                         </Tooltip>
                                     </Polyline>
@@ -598,6 +610,10 @@ const MapArea = () => {
                                 <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-yellow-400 mr-2"></span> Fair</div>
                                 <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-orange-500 mr-2"></span> Poor</div>
                                 <div className="flex items-center text-[10px]"><span className="w-2 h-2 rounded-full bg-red-600 mr-2"></span> Bad</div>
+                            </div>
+                            <div className="mt-2 pt-1 border-t border-gray-100 text-[9px] text-gray-400">
+                                <span className="inline-block w-4 border-t-2 border-dashed border-gray-400 mr-1"></span>
+                                Low Speed / Intersection
                             </div>
                         </div>
                     )}

@@ -97,6 +97,7 @@ class IRIService:
                     iri_value=float(iri_val),
                     mean_speed=float(segment['mean_speed']),  # Use pre-computed value
                     rms_accel=float(segment['rms_accel']),    # Use pre-computed value
+                    speed_flag=segment.get('speed_flag', 'normal'),  # Speed-aware flag
                     start_lat=start_lat,
                     start_lon=start_lon,
                     end_lat=end_lat,
