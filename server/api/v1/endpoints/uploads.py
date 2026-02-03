@@ -56,8 +56,36 @@ async def update_status_override(
     # Save back to DB
     upload.status_overrides = json.dumps(overrides)
     
-    # CRITICAL: Invalidate cache to force re-processing with new overrides
-    upload.cached_data = None
+    # MEMORY OPTIMIZATION: Patch cache instead of invalidating
+    # This prevents 512MB memory spike from full re-processing
+    cache_patched = False
+    if upload.cached_data:
+        try:
+            cached = json.loads(upload.cached_data)
+            if 'data' in cached and isinstance(cached['data'], list):
+                if request.deleted is True:
+                    # Remove deleted marker from cache
+                    original_count = len(cached['data'])
+                    cached['data'] = [m for m in cached['data'] if m.get('id') != request.detection_idx]
+                    cached['count'] = len(cached['data'])
+                    cache_patched = (len(cached['data']) < original_count)
+                elif request.hidden is not None:
+                    # Update hidden status in cache
+                    for m in cached['data']:
+                        if m.get('id') == request.detection_idx:
+                            m['is_hidden'] = request.hidden
+                            cache_patched = True
+                            break
+                
+                if cache_patched:
+                    upload.cached_data = json.dumps(cached)
+        except (json.JSONDecodeError, TypeError, KeyError):
+            # Fallback: invalidate cache if patching fails
+            upload.cached_data = None
+    
+    # If cache wasn't patched (no cache or patch failed), invalidate for safety
+    if not cache_patched and upload.cached_data is None:
+        pass  # Already None, re-processing will happen on next request
     
     db.commit()
 
