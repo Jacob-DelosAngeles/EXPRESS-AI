@@ -159,12 +159,41 @@ async def process_pothole_data(
             if not path_col: missing.append('image_path')
             raise HTTPException(status_code=400, detail=f"Required detection columns missing: {missing}")
         
-        # 2. Fetch all detection images for this user
+        # ============================================
+        # LAZY IMAGE LOADING - Memory Optimization
+        # Extract only the image filenames we need from CSV,
+        # then query ONLY those images (not all user images)
+        # ============================================
+        
+        # Step 1: Extract unique image filenames from CSV
+        image_filenames_needed = set()
+        for idx, row in df.iterrows():
+            img_path = str(row.get(path_col, ''))
+            if img_path and img_path != 'nan':
+                # Get just the filename (not full path)
+                image_filenames_needed.add(os.path.basename(img_path))
+        
+        # Memory safety cap - prevent explosion with huge CSVs
+        MAX_IMAGES = 500
+        if len(image_filenames_needed) > MAX_IMAGES:
+            logger.warning(f"CSV references {len(image_filenames_needed)} images, limiting to {MAX_IMAGES}")
+            image_filenames_needed = set(list(image_filenames_needed)[:MAX_IMAGES])
+        
+        logger.info(f"Lazy loading {len(image_filenames_needed)} images (instead of all user images)")
+        
+        # Step 2: Query ONLY the images we need (by original_filename)
         file_owner_id = upload_record.user_id
-        image_records = db.query(UploadModel).filter(
-            UploadModel.user_id == file_owner_id,
-            UploadModel.file_type.in_(['jpg', 'jpeg', 'png', 'gif', 'bmp']) 
-        ).all()
+        image_records = []
+        if image_filenames_needed:
+            image_records = db.query(
+                UploadModel.original_filename,
+                UploadModel.storage_path,
+                UploadModel.category
+            ).filter(
+                UploadModel.user_id == file_owner_id,
+                UploadModel.file_type.in_(['jpg', 'jpeg', 'png', 'gif', 'bmp']),
+                UploadModel.original_filename.in_(image_filenames_needed)
+            ).all()
         
         # Categorical Separation: Group images by category to prioritize matches
         category_images = {} # {category: {filename: storage_path}}
