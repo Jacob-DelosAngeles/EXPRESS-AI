@@ -41,22 +41,40 @@ async def process_pavement_data(
 ):
     """
     Process a pavement type CSV file and return map-ready segments.
-    Uses shared data model (all users see all pavement data).
+    Visibility: users see OWN + SUPERUSER uploads
     Includes caching for instant retrieval after first processing.
     """
-    # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
+    # Get superuser IDs for global data visibility
+    superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+    
+    # 1. Fetch the upload record with visibility rules
     upload_record = None
     if filename.isdigit():
         upload_record = db.query(UploadModel).filter(
-            UploadModel.id == int(filename)
+            UploadModel.id == int(filename),
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).first()
+        
+        # Superuser can see ALL
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.id == int(filename)
+            ).first()
     
     if not upload_record:
-        # Fallback to unique filename (UUID part) ONLY
+        # Fallback to filename with visibility rules
         upload_record = db.query(UploadModel).filter(
             UploadModel.filename == filename,
-            UploadModel.category == 'pavement'
+            UploadModel.category == 'pavement',
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).order_by(UploadModel.upload_date.desc()).first()
+        
+        # Superuser fallback
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.filename == filename,
+                UploadModel.category == 'pavement'
+            ).order_by(UploadModel.upload_date.desc()).first()
 
     if not upload_record:
         raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")

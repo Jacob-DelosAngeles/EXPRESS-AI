@@ -355,11 +355,21 @@ async def list_uploaded_files(
     db: Session = Depends(get_db)
 ):
     """
-    List all files (shared data model).
-    All authenticated users see all files.
+    List files with visibility rules:
+    - Users/Admins: see OWN uploads + SUPERUSER uploads (global/sample data)
+    - Superusers: see ALL uploads
     """
     try:
-        uploads = db.query(UploadModel).all()
+        if current_user.is_superuser:
+            # Superuser sees everything
+            uploads = db.query(UploadModel).all()
+        else:
+            # Get superuser IDs for global data
+            superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+            # User sees: own uploads + superuser uploads
+            uploads = db.query(UploadModel).filter(
+                (UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids))
+            ).all()
         
         return {
             "success": True,
@@ -376,13 +386,24 @@ async def list_files_by_category(
     db: Session = Depends(get_db)
 ):
     """
-    List files by category (shared data model).
-    All authenticated users see all files in this category.
+    List files by category with visibility rules:
+    - Users/Admins: see OWN uploads + SUPERUSER uploads (global/sample data)
+    - Superusers: see ALL uploads
     """
     try:
-        uploads = db.query(UploadModel).filter(
-            UploadModel.category == category
-        ).all()
+        if current_user.is_superuser:
+            # Superuser sees everything
+            uploads = db.query(UploadModel).filter(
+                UploadModel.category == category
+            ).all()
+        else:
+            # Get superuser IDs for global data
+            superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+            # User sees: own uploads + superuser uploads in this category
+            uploads = db.query(UploadModel).filter(
+                UploadModel.category == category,
+                (UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids))
+            ).all()
         
         return {
             "success": True,
@@ -392,6 +413,7 @@ async def list_files_by_category(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+
 
 @router.delete("/{upload_id}")
 async def delete_upload(

@@ -43,23 +43,39 @@ async def process_vehicle_data(
     """
     Process a vehicle detection CSV file and return map-ready data.
     Uses caching for fast repeat requests.
-    - All users can view shared data (read-only for non-admins)
+    Visibility: users see OWN + SUPERUSER uploads
     """
-    # Find the file in the database (Strict ID lookup for 100% collision prevention)
+    # Get superuser IDs for global data visibility
+    superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+    
+    # Find the file in the database with visibility rules
     upload_record = None
     if filename.isdigit():
         upload_record = db.query(UploadModel).filter(
             UploadModel.id == int(filename),
-            UploadModel.user_id == current_user.id
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).first()
+        
+        # Superuser can see ALL
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.id == int(filename)
+            ).first()
     
     if not upload_record:
-        # Fallback to unique filename (UUID part) ONLY
+        # Fallback to filename with same visibility rules
         upload_record = db.query(UploadModel).filter(
-            UploadModel.user_id == current_user.id,
             UploadModel.filename == filename,
-            UploadModel.category == 'vehicle'
+            UploadModel.category == 'vehicle',
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).order_by(UploadModel.upload_date.desc()).first()
+        
+        # Superuser fallback
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.filename == filename,
+                UploadModel.category == 'vehicle'
+            ).order_by(UploadModel.upload_date.desc()).first()
 
     if not upload_record:
         raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")

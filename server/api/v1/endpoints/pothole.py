@@ -43,22 +43,41 @@ async def process_pothole_data(
     Uses caching for fast repeat requests.
     - All users can view shared data (read-only for non-admins)
     """
-    # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
-    # If filename is a number, treat as ID, otherwise search by storage_path/filename
+    # 1. Fetch the upload record
+    # Visibility rules:
+    #   - Users see their OWN uploads + SUPERUSER uploads (global/sample data)
+    #   - Admins see their OWN uploads + SUPERUSER uploads
+    #   - Superusers see ALL uploads
+    
+    # Get all superuser IDs for global data visibility
+    superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+    
     upload_record = None
     if filename.isdigit():
         upload_record = db.query(UploadModel).filter(
             UploadModel.id == int(filename),
-            UploadModel.user_id == current_user.id
+            # User can see: own uploads OR superuser uploads
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).first()
+        
+        # Superuser can see ALL
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.id == int(filename)
+            ).first()
     
     if not upload_record:
-        # Fallback to unique filename (UUID part) ONLY - do NOT match original_filename anymore
-        # as it is not unique across batches.
+        # Fallback to filename lookup with same visibility rules
         upload_record = db.query(UploadModel).filter(
-            UploadModel.user_id == current_user.id,
-            UploadModel.filename == filename
+            UploadModel.filename == filename,
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).order_by(UploadModel.upload_date.desc()).first()
+        
+        # Superuser fallback
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.filename == filename
+            ).order_by(UploadModel.upload_date.desc()).first()
     
     if not upload_record:
         raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")

@@ -452,22 +452,25 @@ const Sidebar = () => {
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        // 1. Restore IRI Files
+        // 1. Restore IRI Files (PARALLEL for speed)
         const iriRes = await fileService.getUploadedFiles('iri');
         if (iriRes.success && iriRes.files) {
           const uniqueFiles = {};
           iriRes.files.forEach(f => { uniqueFiles[f.original_filename] = f; });
           const filesToRestore = Object.values(uniqueFiles);
 
-          const restoredIriFiles = [];
-          for (const file of filesToRestore) {
-            try {
-              // Use cached IRI data for instant load
-              const computeRes = await fileService.getCachedIRI(file.id);
-              if (computeRes.success) {
-                restoredIriFiles.push({
-                  id: file.id,
-                  filename: file.original_filename,
+          // Parallel IRI processing
+          const iriResults = await Promise.allSettled(
+            filesToRestore.map(file => fileService.getCachedIRI(file.id))
+          );
+
+          const restoredIriFiles = iriResults
+            .map((result, i) => {
+              if (result.status === 'fulfilled' && result.value.success) {
+                const computeRes = result.value;
+                return {
+                  id: filesToRestore[i].id,
+                  filename: filesToRestore[i].original_filename,
                   segments: computeRes.segments,
                   raw_data: computeRes.raw_data,
                   filtered_data: computeRes.filtered_data,
@@ -479,90 +482,97 @@ const Sidebar = () => {
                     totalDistance: (computeRes.segments && computeRes.segments.length > 0) ? computeRes.segments[computeRes.segments.length - 1].distance_end : 0,
                     totalSegments: computeRes.total_segments || 0
                   }
-                });
+                };
               }
-            } catch (e) { console.error("Restore IRI Error", e); }
-          }
+              return null;
+            })
+            .filter(Boolean);
+
           if (restoredIriFiles.length > 0) setIriFiles(restoredIriFiles);
         }
 
-        // 2. Restore Pothole & Crack Data
-        const [potholeRes, crackRes] = await Promise.all([
+        // 2. Restore Pothole & Crack Data (PARALLEL for speed)
+        const [potholeRes, crackRes, vehicleRes, pavementRes] = await Promise.all([
           fileService.getUploadedFiles('pothole'),
-          fileService.getUploadedFiles('crack')
+          fileService.getUploadedFiles('crack'),
+          fileService.getUploadedFiles('vehicle'),
+          fileService.getUploadedFiles('pavement')
         ]);
 
-        // 2. Restore Pothole Data
+        // 2a. Restore Pothole Data (PARALLEL processing)
         if (potholeRes.success && potholeRes.files) {
           const csvFiles = potholeRes.files.filter(f => f.filename.endsWith('.csv'));
-          const restored = [];
-          for (const file of csvFiles) {
-            try {
-              const res = await fileService.processPotholes(file.id);
-              if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true });
-            } catch (e) { console.error("Restore Pothole Error", e); }
-          }
+          const potholeResults = await Promise.allSettled(
+            csvFiles.map(file => fileService.processPotholes(file.id))
+          );
+          const restored = potholeResults
+            .map((result, i) => {
+              if (result.status === 'fulfilled' && result.value.success) {
+                return { id: csvFiles[i].id, filename: csvFiles[i].original_filename, data: result.value.data, visible: true };
+              }
+              return null;
+            })
+            .filter(Boolean);
           if (restored.length > 0) setPotholeFiles(restored);
         }
 
-        // 3. Restore Crack Data
+        // 2b. Restore Crack Data (PARALLEL processing)
         if (crackRes.success && crackRes.files) {
           const csvFiles = crackRes.files.filter(f => f.filename.endsWith('.csv'));
-          const restored = [];
-          for (const file of csvFiles) {
-            try {
-              const res = await fileService.processPotholes(file.id);
-              if (res.success) restored.push({ id: file.id, filename: file.original_filename, data: res.data, visible: true, category: 'crack' });
-            } catch (e) { console.error("Restore Crack Error", e); }
-          }
+          const crackResults = await Promise.allSettled(
+            csvFiles.map(file => fileService.processPotholes(file.id))
+          );
+          const restored = crackResults
+            .map((result, i) => {
+              if (result.status === 'fulfilled' && result.value.success) {
+                return { id: csvFiles[i].id, filename: csvFiles[i].original_filename, data: result.value.data, visible: true, category: 'crack' };
+              }
+              return null;
+            })
+            .filter(Boolean);
           if (restored.length > 0) setCrackFiles(restored);
         }
 
-        // 3. Restore Vehicle Data
-        const vehicleRes = await fileService.getUploadedFiles('vehicle');
+        // 3. Restore Vehicle Data (PARALLEL processing)
         if (vehicleRes.success && vehicleRes.files) {
           const uniqueVehicles = {};
           vehicleRes.files.forEach(f => { uniqueVehicles[f.original_filename] = f; });
+          const vehicleFiles = Object.values(uniqueVehicles);
 
-          const restoredVehicleFiles = [];
-          for (const file of Object.values(uniqueVehicles)) {
-            try {
-              const processRes = await fileService.processVehicles(file.id);
-              if (processRes.success) {
-                restoredVehicleFiles.push({
-                  id: file.id,
-                  filename: file.original_filename,
-                  data: processRes.data,
-                  visible: true
-                });
+          const vehicleResults = await Promise.allSettled(
+            vehicleFiles.map(file => fileService.processVehicles(file.id))
+          );
+          const restoredVehicleFiles = vehicleResults
+            .map((result, i) => {
+              if (result.status === 'fulfilled' && result.value.success) {
+                return { id: vehicleFiles[i].id, filename: vehicleFiles[i].original_filename, data: result.value.data, visible: true };
               }
-            } catch (e) { console.error("Restore Vehicle Error", e); }
-          }
+              return null;
+            })
+            .filter(Boolean);
           if (restoredVehicleFiles.length > 0) setVehicleFiles(restoredVehicleFiles);
         }
 
-        // 4. Restore Pavement Data
-        const pavementRes = await fileService.getUploadedFiles('pavement');
+        // 4. Restore Pavement Data (PARALLEL processing)
         if (pavementRes.success && pavementRes.files) {
           const uniquePavement = {};
           pavementRes.files.forEach(f => { uniquePavement[f.original_filename] = f; });
+          const pavementFiles = Object.values(uniquePavement);
 
-          const restoredPavementFiles = [];
-          for (const file of Object.values(uniquePavement)) {
-            try {
-              const processRes = await fileService.processPavement(file.id);
-              if (processRes.success) {
-                restoredPavementFiles.push({
-                  id: file.id,
-                  filename: file.original_filename,
-                  data: processRes.data,
-                  visible: true
-                });
+          const pavementResults = await Promise.allSettled(
+            pavementFiles.map(file => fileService.processPavement(file.id))
+          );
+          const restoredPavementFiles = pavementResults
+            .map((result, i) => {
+              if (result.status === 'fulfilled' && result.value.success) {
+                return { id: pavementFiles[i].id, filename: pavementFiles[i].original_filename, data: result.value.data, visible: true };
               }
-            } catch (e) { console.error("Restore Pavement Error", e); }
-          }
+              return null;
+            })
+            .filter(Boolean);
           if (restoredPavementFiles.length > 0) setPavementFiles(restoredPavementFiles);
         }
+
 
       } catch (err) {
         console.error("Failed to restore session:", err);

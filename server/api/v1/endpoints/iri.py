@@ -39,19 +39,37 @@ async def compute_iri(
     result = None
     
     try:
-        # 1. Fetch the upload record (Strict ID lookup for 100% collision prevention)
+        # Get superuser IDs for global data visibility
+        superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+        
+        # 1. Fetch the upload record with visibility rules
         upload_record = None
         if filename.isdigit():
             upload_record = db.query(UploadModel).filter(
-                UploadModel.id == int(filename)
+                UploadModel.id == int(filename),
+                ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
             ).first()
+            
+            # Superuser can see ALL
+            if not upload_record and current_user.is_superuser:
+                upload_record = db.query(UploadModel).filter(
+                    UploadModel.id == int(filename)
+                ).first()
         
         if not upload_record:
-            # Fallback to unique filename (UUID part) ONLY
+            # Fallback with visibility rules
             upload_record = db.query(UploadModel).filter(
                 UploadModel.file_type == 'csv',
-                UploadModel.filename == filename
+                UploadModel.filename == filename,
+                ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
             ).order_by(UploadModel.upload_date.desc()).first()
+            
+            # Superuser fallback
+            if not upload_record and current_user.is_superuser:
+                upload_record = db.query(UploadModel).filter(
+                    UploadModel.file_type == 'csv',
+                    UploadModel.filename == filename
+                ).order_by(UploadModel.upload_date.desc()).first()
 
         if not upload_record:
             raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
@@ -98,24 +116,41 @@ async def get_cached_iri(
 ):
     """
     Get pre-processed IRI data from cache (INSTANT - no processing).
-    This is the preferred endpoint for fetching IRI data.
-    Data is cached during upload for fast retrieval.
+    Visibility: users see OWN + SUPERUSER uploads
     """
     import json
     
-    # Find the file record (Strict ID lookup for 100% collision prevention)
+    # Get superuser IDs for global data visibility
+    superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+    
+    # Find the file record with visibility rules
     upload_record = None
     if filename.isdigit():
         upload_record = db.query(UploadModel).filter(
-            UploadModel.id == int(filename)
+            UploadModel.id == int(filename),
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).first()
+        
+        # Superuser can see ALL
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.id == int(filename)
+            ).first()
     
     if not upload_record:
-        # Fallback to unique filename (UUID part) ONLY
+        # Fallback with visibility rules
         upload_record = db.query(UploadModel).filter(
             UploadModel.file_type == 'csv',
-            UploadModel.filename == filename
+            UploadModel.filename == filename,
+            ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).order_by(UploadModel.upload_date.desc()).first()
+        
+        # Superuser fallback
+        if not upload_record and current_user.is_superuser:
+            upload_record = db.query(UploadModel).filter(
+                UploadModel.file_type == 'csv',
+                UploadModel.filename == filename
+            ).order_by(UploadModel.upload_date.desc()).first()
     
     if not upload_record:
         raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
