@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python)](https://python.org/)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-00FFCD?style=flat)](https://ultralytics.com/)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=flat)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)](LICENSE)
 
 </div>
 
