@@ -1,0 +1,8 @@
+# Prevent Windows Zone.Identifier alternate data streams from being tracked
+*:Zone.Identifier export-ignore
+*:Zone.Identifier -diff
+
+# Normalize line endings
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
