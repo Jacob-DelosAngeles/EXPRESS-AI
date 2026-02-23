@@ -88,10 +88,29 @@ const ProductsPage = () => {
                                 </div>
 
                                 <div className="pp-cta-buttons">
-                                    <a href="#" className="pp-download-btn" id="download-installer-btn">
+                                    <a
+                                        href="https://github.com/Jacob-DelosAngeles/DAAN-FERN/releases/download/v2.0.0/DAAN-FERN%20Setup%202.0.0.exe"
+                                        className="pp-download-btn"
+                                        id="download-installer-btn"
+                                        download
+                                    >
                                         <span className="material-symbols-outlined pp-dl-icon">download</span>
                                         <span>Download Installer</span>
                                     </a>
+                                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.5rem', textAlign: 'center' }}>
+                                        v2.0.0 &bull; Windows 10/11 64-bit &bull;{' '}
+                                        <a
+                                            href="https://github.com/Jacob-DelosAngeles/DAAN-FERN/releases"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: '#6b7280', textDecoration: 'underline' }}
+                                        >
+                                            View all releases
+                                        </a>
+                                    </p>
+                                    <p style={{ fontSize: '0.72rem', color: '#6b7280', marginTop: '0.25rem', textAlign: 'center' }}>
+                                        ⚠️ Windows may show a security warning. Click <strong>"More info"</strong> → <strong>"Run anyway"</strong> to proceed.
+                                    </p>
                                 </div>
                             </div>
                         </div>

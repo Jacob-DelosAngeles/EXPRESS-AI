@@ -1,0 +1,62 @@
+{
+  "name": "daan-fern-desktop",
+  "version": "2.0.0",
+  "description": "DAAN-FERN — Desktop Road Analytics Tool",
+  "main": "main.js",
+  "author": "DAAN-FERN Team",
+  "license": "CC-BY-NC-4.0",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-log": "^5.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.daan-fern.desktop",
+    "productName": "DAAN-FERN",
+    "directories": {
+      "output": "../dist/electron"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/daan-server",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../../client/dist",
+        "to": "frontend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../../client/public/logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerHeaderIcon": "../../client/public/logo.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Jacob-DelosAngeles",
+      "repo": "DAAN-FERN",
+      "releaseType": "release"
+    }
+  }
+}
