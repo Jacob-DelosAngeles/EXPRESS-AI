@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python)](https://python.org/)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-00FFCD?style=flat)](https://ultralytics.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=flat)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 </div>
 
