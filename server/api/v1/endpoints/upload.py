@@ -59,17 +59,17 @@ async def upload_files(
         )
     
     results = []
-    pothole_csv_upload_id = None  # Track CSV upload for linking images
+    pothole_csv_upload_id = None  # Track CSV upload for linking images (pothole or crack)
     
     # Generate a unique batch_id for this upload session to prevent naming collisions
     batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
     
     # ---------------------------------------------------------
-    # SMART FILTERING (STRICT MODE) FOR POTHOLE UPLOADS
+    # SMART FILTERING (STRICT MODE) FOR POTHOLE/CRACK UPLOADS
     # Now supports batched uploads where CSV was uploaded first
     # ---------------------------------------------------------
     allowed_pothole_images = None
-    if type == "pothole":
+    if type in ("pothole", "crack"):
         # First, check if there's a CSV in the current upload batch
         csv_file = next((f for f in files if f.filename.lower().endswith('.csv')), None)
         
@@ -89,7 +89,7 @@ async def upload_files(
             try:
                 existing_csv = db.query(UploadModel).filter(
                     UploadModel.user_id == current_user.id,
-                    UploadModel.category == 'pothole',
+                    UploadModel.category == type,
                     UploadModel.file_type == 'csv'
                 ).order_by(UploadModel.upload_date.desc()).first()
                 
@@ -119,7 +119,7 @@ async def upload_files(
             file_extension = os.path.splitext(file.filename)[1].lower()
             
             # Smart Filtering Check
-            if type == "pothole" and allowed_pothole_images is not None:
+            if type in ("pothole", "crack") and allowed_pothole_images is not None:
                 is_image_check = file_extension in {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
                 if is_image_check:
                     if file.filename not in allowed_pothole_images:
@@ -284,8 +284,8 @@ async def upload_files(
                     duration=0.0
                 ))
             
-            # Handle image files (for potholes)
-            elif is_image and type == "pothole":
+            # Handle image files (for potholes and cracks)
+            elif is_image and type in ("pothole", "crack"):
                 # Save to database
                 db_upload = UploadModel(
                     user_id=current_user.id,
@@ -441,9 +441,9 @@ async def delete_upload(
         if not upload:
             raise HTTPException(status_code=404, detail="Upload not found or access denied")
             
-        # SMART DELETION FOR POTHOLES
-        # If deleting a Pothole CSV, cascade delete the associated images
-        if upload.category == 'pothole' and upload.file_type == 'csv':
+        # SMART DELETION FOR POTHOLES AND CRACKS
+        # If deleting a Pothole/Crack CSV, cascade delete the associated images
+        if upload.category in ('pothole', 'crack') and upload.file_type == 'csv':
             try:
                 # 1. Read the CSV content
                 content_bytes = file_handler.storage.get_file_content(upload.storage_path)
@@ -459,7 +459,7 @@ async def delete_upload(
                         # We match by original_filename because R2 filenames are UUIDs
                         images_to_delete = db.query(UploadModel).filter(
                             UploadModel.user_id == current_user.id,
-                            UploadModel.category == 'pothole',
+                            UploadModel.category == upload.category,
                             UploadModel.original_filename.in_(image_filenames)
                         ).all()
                         

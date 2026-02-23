@@ -1,0 +1,752 @@
+/* ===== Products Page — Stitch AI redesign ===== */
+/* Uses Space Grotesk (display) + Noto Sans (body) loaded in index.html */
+
+/* ── Root ─────────────────────────────────────── */
+.pp-root {
+    min-height: 100dvh;
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+/* ── MAIN ─────────────────────────────────────── */
+.pp-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 88rem;
+    margin: 0 auto;
+    padding: 5rem 1.5rem 5rem;
+    /* top pad accounts for fixed landing navbar height */
+}
+
+
+/* ── HERO ─────────────────────────────────────── */
+.pp-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2.5rem 0 4rem;
+}
+
+/* New version badge */
+.pp-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1.1rem;
+    border: 1px solid rgba(19, 91, 236, 0.35);
+    background: rgba(19, 91, 236, 0.1);
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #60a5fa;
+    margin-bottom: 1.75rem;
+    letter-spacing: 0.02em;
+    box-shadow: 0 0 12px rgba(19, 91, 236, 0.2);
+}
+
+.pp-badge-ping-wrapper {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pp-badge-ping {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #135bec;
+    opacity: 0.75;
+    animation: badge-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.pp-badge-dot {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #135bec;
+}
+
+@keyframes badge-ping {
+
+    75%,
+    100% {
+        transform: scale(2.2);
+        opacity: 0;
+    }
+}
+
+.pp-hero-title {
+    font-size: clamp(2.8rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    max-width: 900px;
+}
+
+.pp-gradient-text {
+    background: linear-gradient(90deg, #93c5fd, #60a5fa, #135bec);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.pp-hero-subtitle {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.75;
+    max-width: 42rem;
+    margin: 0 auto 3.5rem;
+}
+
+/* ── SHOWCASE CARD ────────────────────────────── */
+.pp-showcase-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Ambient glow blobs */
+.pp-glow {
+    position: absolute;
+    width: 24rem;
+    height: 24rem;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(100px);
+}
+
+.pp-glow-tr {
+    top: -10rem;
+    right: -10rem;
+    background: rgba(19, 91, 236, 0.18);
+}
+
+.pp-glow-bl {
+    bottom: -10rem;
+    left: -10rem;
+    background: rgba(96, 165, 250, 0.1);
+}
+
+.pp-showcase-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    align-items: center;
+}
+
+/* Screenshot column — monitor mockup */
+.pp-screenshot-col {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* Outer wrapper — constrains the whole monitor */
+.pp-monitor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    filter: drop-shadow(0 32px 48px rgba(0, 0, 0, 0.55));
+    transition: filter 0.4s ease;
+}
+
+.pp-showcase-card:hover .pp-monitor {
+    filter: drop-shadow(0 40px 60px rgba(19, 91, 236, 0.25));
+}
+
+/* Monitor bezel */
+.pp-monitor-bezel {
+    width: 100%;
+    background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    border-bottom: none;
+    border-radius: 16px 16px 6px 6px;
+    padding: 14px 14px 10px;
+    position: relative;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Webcam dot */
+.pp-monitor-cam {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    margin: 0 auto 10px;
+}
+
+/* Screen well — the dark inset where the screenshot lives */
+.pp-monitor-screen {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #0a0f1a;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.6);
+    box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.pp-screenshot-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Monitor neck / stem */
+.pp-monitor-neck {
+    width: 18px;
+    height: 28px;
+    background: linear-gradient(to bottom, #1e293b, #0f172a);
+    border-left: 2px solid rgba(255, 255, 255, 0.07);
+    border-right: 2px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Monitor base */
+.pp-monitor-base {
+    width: 30%;
+    height: 12px;
+    background: linear-gradient(to bottom, #1e293b, #0f172a);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 18px 18px;
+    border-top: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+
+/* Info panel column */
+.pp-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pp-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pp-info-icon-box {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.6rem;
+    padding: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pp-info-icon {
+    font-size: 2rem !important;
+    color: #fff;
+}
+
+.pp-info-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.pp-info-platform {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-family: 'Noto Sans', sans-serif;
+    margin: 0;
+}
+
+.pp-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Meta grid (version/size/license/update) */
+.pp-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem 1.5rem;
+}
+
+.pp-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.pp-meta-label {
+    font-size: 0.68rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.38);
+    font-family: 'Noto Sans', sans-serif;
+}
+
+.pp-meta-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+/* CTA buttons */
+.pp-cta-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: auto;
+}
+
+.pp-download-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1rem 1.5rem;
+    background: #135bec;
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    box-shadow: 0 8px 24px rgba(19, 91, 236, 0.25);
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.pp-download-btn:hover {
+    background: #1d4ed8;
+}
+
+.pp-download-btn:active {
+    transform: scale(0.98);
+}
+
+.pp-dl-icon {
+    font-size: 1.3rem !important;
+    transition: transform 0.3s;
+}
+
+.pp-download-btn:hover .pp-dl-icon {
+    animation: bounce-icon 0.6s infinite;
+}
+
+@keyframes bounce-icon {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+/* ── FEATURES ─────────────────────────────────── */
+.pp-features {
+    padding: 3rem 0;
+    width: 100%;
+}
+
+.pp-section-title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 2rem;
+    letter-spacing: -0.02em;
+}
+
+.pp-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1.25rem;
+}
+
+.pp-feature-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top-width: 3px;
+    border-radius: 1rem;
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: background 0.25s;
+}
+
+.pp-feature-card:hover {
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.pp-feature-card h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.pp-feature-card p {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.58);
+    line-height: 1.65;
+    margin: 0;
+}
+
+/* Colored top borders */
+.pp-feature-blue {
+    border-top-color: #135bec;
+}
+
+.pp-feature-cyan {
+    border-top-color: #06b6d4;
+}
+
+.pp-feature-purple {
+    border-top-color: #a855f7;
+}
+
+.pp-feature-emerald {
+    border-top-color: #10b981;
+}
+
+/* Feature icon boxes */
+.pp-feature-icon-box {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pp-feature-icon-box .material-symbols-outlined {
+    font-size: 1.5rem !important;
+}
+
+.pp-fib-blue {
+    background: rgba(19, 91, 236, 0.18);
+    color: #60a5fa;
+}
+
+.pp-fib-cyan {
+    background: rgba(6, 182, 212, 0.18);
+    color: #22d3ee;
+}
+
+.pp-fib-purple {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+}
+
+.pp-fib-emerald {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+}
+
+/* ── BOTTOM GRID (How + Sys Req) ──────────────── */
+.pp-bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    padding: 1rem 0 2rem;
+}
+
+/* ── HOW IT WORKS ─────────────────────────────── */
+.pp-how {
+    display: flex;
+    flex-direction: column;
+}
+
+.pp-timeline {
+    position: relative;
+    padding-left: 1.5rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    margin-left: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+.pp-timeline-item {
+    position: relative;
+    padding-left: 2.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.pp-step-num {
+    position: absolute;
+    left: -3.4rem;
+    top: 0;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: #1e293b;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75);
+    box-shadow: none;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.pp-timeline-item:hover .pp-step-num {
+    border-color: rgba(255, 255, 255, 0.45);
+    transform: scale(1.08);
+}
+
+.pp-step-active {
+    border-color: #135bec;
+    color: #60a5fa;
+    box-shadow: 0 0 16px rgba(19, 91, 236, 0.3);
+}
+
+.pp-step-content {
+    padding-left: 0.5rem;
+}
+
+.pp-step-content h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.4rem;
+}
+
+.pp-step-content p {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.65;
+    max-width: 28rem;
+    margin: 0;
+}
+
+/* ── SYSTEM REQUIREMENTS ──────────────────────── */
+.pp-sysreq {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.pp-sysreq-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    padding: 2rem;
+}
+
+.pp-sysreq-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.75rem;
+}
+
+.pp-sysreq-icon {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.5rem !important;
+}
+
+.pp-sysreq-header h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.pp-req-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Noto Sans', sans-serif;
+}
+
+.pp-req-table thead tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pp-req-table thead th {
+    padding: 0.75rem 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: left;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.pp-req-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.15s;
+}
+
+.pp-req-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.pp-req-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.pp-req-component {
+    padding: 1rem 0;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.9rem;
+    width: 38%;
+}
+
+.pp-req-value {
+    padding: 1rem 0;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* ── FOOTER ───────────────────────────────────── */
+.pp-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 4rem 1.5rem 3rem;
+    background: #0f172a;
+    width: 100%;
+    margin-top: auto;
+}
+
+.pp-footer-inner {
+    max-width: 88rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+.pp-footer-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: center;
+}
+
+.pp-footer-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pp-footer-logo {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.pp-footer-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.pp-footer-copy {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.28);
+    line-height: 1.7;
+    margin: 0;
+}
+
+.pp-footer-links {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.pp-footer-link {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.pp-footer-link:hover {
+    color: #60a5fa;
+}
+
+/* ── RESPONSIVE ───────────────────────────────── */
+@media (min-width: 1024px) {
+    .pp-showcase-grid {
+        grid-template-columns: 8fr 4fr;
+    }
+
+    .pp-bottom-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+    }
+
+    .pp-footer-inner {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .pp-footer-brand {
+        align-items: flex-start;
+        text-align: left;
+    }
+}
+
+@media (max-width: 768px) {
+    .pp-hero-title {
+        font-size: 2.4rem;
+    }
+
+    .pp-section-title {
+        font-size: 1.5rem;
+    }
+
+    .pp-step-num {
+        left: -3.1rem;
+        width: 3rem;
+        height: 3rem;
+        font-size: 1rem;
+    }
+}

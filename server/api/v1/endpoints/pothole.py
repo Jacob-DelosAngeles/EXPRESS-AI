@@ -95,9 +95,9 @@ async def process_pothole_data(
             # Check if cache has upload_id (new format) - invalidate old caches
             if cached_response.get('data') and len(cached_response['data']) > 0:
                 first_marker = cached_response['data'][0]
-                if not first_marker.get('upload_id') or not first_marker.get('storage_path'):
-                    # Old cache format - need to re-process to include upload_id for cleaning tools
-                    logger.info(f"Invalidating old cache for {filename} (missing upload_id or storage_path)")
+                if not first_marker.get('upload_id') or not first_marker.get('storage_path') or 'measurement' not in first_marker:
+                    # Old cache format - need to re-process to include upload_id / measurement field
+                    logger.info(f"Invalidating old cache for {filename} (missing upload_id, storage_path, or measurement)")
                     upload_record.cached_data = None
                     db.commit()
                 else:
@@ -362,6 +362,17 @@ async def process_pothole_data(
                 </div>
                 """
                 
+                # Extract measurement (crack length) if present in CSV
+                measurement = 0.0
+                row_keys_lower_all = {k.lower(): k for k in row.keys()}
+                for mkey in ['measurement', 'length_m', 'crack_length', 'length']:
+                    if mkey in row_keys_lower_all:
+                        try:
+                            measurement = float(row[row_keys_lower_all[mkey]])
+                        except (ValueError, TypeError):
+                            measurement = 0.0
+                        break
+                
                 markers_data.append({
                     'lat': lat,
                     'lon': lon,
@@ -378,7 +389,8 @@ async def process_pothole_data(
                     'timestamp': timestamp,
                     'is_hidden': is_hidden,
                     'upload_id': upload_record.id,
-                    'id': idx
+                    'id': idx,
+                    'measurement': measurement,  # Crack length in meters (0 for potholes without this field)
                 })
             except Exception as e:
                 logger.debug(f"Error processing pothole row {idx}: {e}")

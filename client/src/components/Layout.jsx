@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
+const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+
 const NavLink = ({ to, label }) => {
     const location = useLocation();
     const isActive = location.pathname.startsWith(to);
@@ -62,6 +64,14 @@ const Layout = () => {
                     <nav className="hidden md:flex space-x-1">
                         <NavLink to="/app/dashboard" label="Dashboard" />
                         <NavLink to="/app/analytics" label="Analytics" />
+                        {!IS_DESKTOP && (
+                            <Link
+                                to="/products"
+                                className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                            >
+                                Products
+                            </Link>
+                        )}
                         <Link
                             to="/"
                             className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
@@ -111,6 +121,18 @@ const Layout = () => {
                                     <Activity size={16} className="mr-2" />
                                     Analytics
                                 </Link>
+                                {!IS_DESKTOP && (
+                                    <Link
+                                        to="/products"
+                                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                        onClick={() => setDropdownOpen(false)}
+                                    >
+                                        <svg width={16} height={16} className="mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><path d="M8 21h8M12 17v4" />
+                                        </svg>
+                                        Products
+                                    </Link>
+                                )}
                                 <div className="border-t border-gray-100 my-1"></div>
                             </div>
                             {user?.is_superuser && (

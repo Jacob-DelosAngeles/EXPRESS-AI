@@ -26,6 +26,7 @@
     right: 0;
     z-index: 1000;
     backdrop-filter: blur(12px);
+    font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
 .navbar-logo {
@@ -73,6 +74,11 @@
 
 .nav-link:hover {
     color: #ffffff;
+}
+
+.nav-link-active {
+    color: #ffffff !important;
+    font-weight: 600;
 }
 
 .nav-login {

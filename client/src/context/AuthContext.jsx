@@ -4,7 +4,43 @@ import { fileService, setTokenGetter } from '../services/api';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+// ── Desktop Mode Detection ──────────────────────────────────
+const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+
+// ── Desktop Auth Provider (no Clerk) ────────────────────────
+const DesktopAuthProvider = ({ children }) => {
+    // In desktop mode, the user is always a local superuser.
+    // No cloud authentication is needed.
+    const user = {
+        email: 'desktop@local',
+        name: 'Desktop User',
+        clerkId: 'desktop-local-user',
+        role: 'superuser',
+        is_superuser: true,
+        is_admin: true
+    };
+
+    return (
+        <AuthContext.Provider value={{
+            user,
+            logout: () => { },  // No-op in desktop mode
+            loading: false,
+            isAuthenticated: true,
+            role: 'superuser',
+            isSuperuser: true,
+            isAdmin: true,
+            getToken: () => Promise.resolve('desktop-mode'),
+            syncError: null
+        }}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+// ── Web Auth Provider (Clerk — existing code, unchanged) ────
+const WebAuthProvider = ({ children }) => {
+    // Clerk hooks (imported at top) only work inside <ClerkProvider>
+    // which is guaranteed in web mode (see main.jsx)
     const { isLoaded, isSignedIn, user: clerkUser } = useUser();
     const { getToken } = useClerkAuth();
     const { signOut } = useClerk();
@@ -99,4 +135,8 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
+// ── Export: Auto-select provider based on mode ──────────────
+export const AuthProvider = IS_DESKTOP ? DesktopAuthProvider : WebAuthProvider;
+
 export const useAuth = () => useContext(AuthContext);
+

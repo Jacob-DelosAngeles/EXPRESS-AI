@@ -5,18 +5,28 @@ import 'leaflet/dist/leaflet.css'
 import './index.css'
 import App from './App.jsx'
 
-// Get Clerk publishable key from environment
+// ── Desktop Mode Detection ──────────────────────────────────
+// When running inside Electron, window.daanDesktop is set by preload.js.
+// In desktop mode, we skip Clerk entirely (no cloud auth needed).
+const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+
+// Get Clerk publishable key from environment (only required in web mode)
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
-if (!PUBLISHABLE_KEY) {
+if (!IS_DESKTOP && !PUBLISHABLE_KEY) {
   throw new Error('Missing Clerk Publishable Key. Add VITE_CLERK_PUBLISHABLE_KEY to your .env file.')
 }
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/login">
+    {IS_DESKTOP ? (
+      // Desktop Mode: No Clerk, no cloud auth
       <App />
-    </ClerkProvider>
+    ) : (
+      // Web Mode: Full Clerk authentication (unchanged)
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/login">
+        <App />
+      </ClerkProvider>
+    )}
   </StrictMode>,
 )
-

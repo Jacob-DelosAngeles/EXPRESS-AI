@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { SignIn, SignUp, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
+import ProductsPage from './pages/ProductsPage';
 import Dashboard from './pages/Dashboard';
 import IRICalculator from './pages/IRICalculator';
 import Mapping from './pages/Mapping';
@@ -11,6 +12,9 @@ import Analytics from './pages/Analytics';
 import Layout from './components/Layout';
 import AuthLayout from './components/Auth/AuthLayout';
 import { clerkAppearance } from './utils/clerkTheme';
+
+// True when running inside the Electron desktop shell
+const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
 
 // Protected Route Component - uses our AuthContext which wraps Clerk
 const ProtectedRoute = ({ children }) => {
@@ -67,6 +71,9 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/products" element={
+            IS_DESKTOP ? <Navigate to="/app/dashboard" replace /> : <ProductsPage />
+          } />
           <Route path="/login/*" element={<LoginPage />} />
           <Route path="/register/*" element={<RegisterPage />} />
 

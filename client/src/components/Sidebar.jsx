@@ -87,7 +87,7 @@ const UploadSection = ({ title, subLabel, onUpload, icon, accept = { 'text/csv':
   );
 };
 
-const PotholeUploadSection = ({ title, onUpload, icon }) => {
+const PotholeUploadSection = ({ title, onUpload, icon, csvLabel = '1. Pothole Data CSV (Required)', imagesLabel = '2. Pothole Images (Optional)' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -173,7 +173,7 @@ const PotholeUploadSection = ({ title, onUpload, icon }) => {
       <div className="px-1 space-y-3">
         {/* CSV Input */}
         <div>
-          <p className="text-xs text-gray-600 mb-1 font-medium">1. Pothole Data CSV (Required)</p>
+          <p className="text-xs text-gray-600 mb-1 font-medium">{csvLabel}</p>
           <div {...getCsvRoot()} className="bg-white border border-gray-300 rounded p-3 flex items-center justify-between cursor-pointer hover:border-blue-400">
             <input {...getCsvInput()} />
             <div className="flex items-center text-gray-500 truncate">
@@ -185,7 +185,7 @@ const PotholeUploadSection = ({ title, onUpload, icon }) => {
 
         {/* Images Input */}
         <div>
-          <p className="text-xs text-gray-600 mb-1 font-medium">2. Pothole Images (Optional)</p>
+          <p className="text-xs text-gray-600 mb-1 font-medium">{imagesLabel}</p>
           <div {...getImagesRoot()} className="bg-white border border-gray-300 rounded p-3 flex items-center justify-between cursor-pointer hover:border-blue-400">
             <input {...getImagesInput()} />
             <div className="flex items-center text-gray-500 truncate">
@@ -749,32 +749,46 @@ const Sidebar = () => {
       throw new Error("CSV upload failed or not found in response");
     }
 
-    // Step 2: Upload images DIRECTLY TO R2
+    // Step 2: Upload images
     if (imageFiles.length > 0) {
-      console.log(`Uploading ${imageFiles.length} ${category} images directly to R2...`);
+      const isDesktop = window.daanDesktop?.isDesktop;
 
-      try {
-        const directUploadProgress = (progress) => {
-          if (onProgress) {
-            if (progress.phase === 'presigning') {
-              onProgress({ phase: 'images', current: 0, total: imageFiles.length });
-            } else if (progress.phase === 'uploading') {
-              onProgress({ phase: 'images', current: progress.current, total: progress.total });
-            } else if (progress.phase === 'complete') {
-              onProgress({ phase: 'images', current: imageFiles.length, total: imageFiles.length });
+      if (!isDesktop) {
+        // WEB MODE: Upload images DIRECTLY TO R2 (fast, parallel)
+        console.log(`Uploading ${imageFiles.length} ${category} images directly to R2...`);
+
+        try {
+          const directUploadProgress = (progress) => {
+            if (onProgress) {
+              if (progress.phase === 'presigning') {
+                onProgress({ phase: 'images', current: 0, total: imageFiles.length });
+              } else if (progress.phase === 'uploading') {
+                onProgress({ phase: 'images', current: progress.current, total: progress.total });
+              } else if (progress.phase === 'complete') {
+                onProgress({ phase: 'images', current: imageFiles.length, total: imageFiles.length });
+              }
             }
-          }
-        };
+          };
 
-        const uploadResult = await fileService.uploadDirectToR2(imageFiles, category, directUploadProgress);
-        console.log(`Direct R2 upload complete: ${uploadResult.success} succeeded, ${uploadResult.failed} failed`);
-      } catch (directErr) {
-        console.error('Direct R2 upload failed, falling back to backend upload:', directErr);
+          const uploadResult = await fileService.uploadDirectToR2(imageFiles, category, directUploadProgress);
+          console.log(`Direct R2 upload complete: ${uploadResult.success} succeeded, ${uploadResult.failed} failed`);
+        } catch (directErr) {
+          console.error('Direct R2 upload failed, falling back to backend upload:', directErr);
+          for (let i = 0; i < imageFiles.length; i += 5) {
+            const batch = imageFiles.slice(i, i + 5);
+            if (onProgress) onProgress({ phase: 'images', current: i, total: imageFiles.length });
+            await fileService.uploadFile(batch, category);
+          }
+        }
+      } else {
+        // DESKTOP MODE: Upload through backend to local storage (no R2)
+        console.log(`Uploading ${imageFiles.length} ${category} images via backend (desktop mode)...`);
         for (let i = 0; i < imageFiles.length; i += 5) {
           const batch = imageFiles.slice(i, i + 5);
           if (onProgress) onProgress({ phase: 'images', current: i, total: imageFiles.length });
           await fileService.uploadFile(batch, category);
         }
+        if (onProgress) onProgress({ phase: 'images', current: imageFiles.length, total: imageFiles.length });
       }
     }
 
@@ -905,6 +919,8 @@ const Sidebar = () => {
             title="Crack Detection Data"
             icon={Activity}
             onUpload={handleCrackUpload}
+            csvLabel="1. Crack Data CSV (Required)"
+            imagesLabel="2. Crack Images (Optional)"
           />
 
           <UploadSection

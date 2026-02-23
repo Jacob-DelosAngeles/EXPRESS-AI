@@ -4,7 +4,7 @@ import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar, Filter, Construction } from 'lucide-react';
+import { Activity, AlertTriangle, Truck, Map as MapIcon, ChevronDown, Download, Calendar, Filter, Construction, Zap, Bell, Thermometer, Layers, Equal } from 'lucide-react';
 import { generateReport } from '../services/reportService';
 import Sidebar from '../components/Sidebar';
 import useAppStore from '../store/useAppStore';
@@ -54,6 +54,107 @@ const getPotholeDiagnosis = (count, density) => {
             pre_rehab_assessment: preRehabChecklist
         };
     }
+};
+
+// Paginated image gallery — 50 images per page, manages its own page state
+const PaginatedGallery = ({ images, title, hoverBorderColor = 'hover:border-blue-400', getUrl, emptyFallback }) => {
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 50;
+    const totalPages = Math.max(1, Math.ceil(images.length / PAGE_SIZE));
+    const pageImages = images.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                <span className="text-sm text-gray-500">
+                    {images.length} total &bull; Page {page} of {totalPages}
+                </span>
+            </div>
+
+            {images.length === 0 ? (
+                emptyFallback !== undefined ? emptyFallback : <div className="text-center py-12 text-gray-400">No images available</div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {pageImages.map((img, idx) => {
+                            const url = getUrl(img);
+                            return (
+                                <div
+                                    key={(page - 1) * PAGE_SIZE + idx}
+                                    className={`relative group rounded-lg overflow-hidden border border-gray-200 ${hoverBorderColor} hover:shadow-lg transition-all cursor-pointer aspect-square`}
+                                    onClick={() => window.open(url, '_blank')}
+                                >
+                                    <img
+                                        src={url}
+                                        alt={`${title} ${(page - 1) * PAGE_SIZE + idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        onError={(e) => { e.target.closest('.aspect-square').style.display = 'none'; }}
+                                    />
+                                    <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold text-white shadow brightness-110 ${img.confidence >= 0.8 ? 'bg-green-600' : img.confidence >= 0.5 ? 'bg-amber-500' : 'bg-rose-600'
+                                        }`}>
+                                        {(img.confidence * 100).toFixed(0)}%
+                                    </div>
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-white text-xs font-medium">Click to enlarge</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Pagination Controls — smart paginator with ellipsis */}
+                    {totalPages > 1 && (() => {
+                        // Build visible page numbers: always show first, last, current ±2, fill gaps with null (ellipsis)
+                        const delta = 2;
+                        const rangeStart = Math.max(2, page - delta);
+                        const rangeEnd = Math.min(totalPages - 1, page + delta);
+                        const pages = [1];
+                        if (rangeStart > 2) pages.push(null); // left ellipsis
+                        for (let i = rangeStart; i <= rangeEnd; i++) pages.push(i);
+                        if (rangeEnd < totalPages - 1) pages.push(null); // right ellipsis
+                        if (totalPages > 1) pages.push(totalPages);
+
+                        return (
+                            <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    ← Prev
+                                </button>
+                                <div className="flex gap-1">
+                                    {pages.map((p, i) =>
+                                        p === null ? (
+                                            <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+                                        ) : (
+                                            <button
+                                                key={p}
+                                                onClick={() => setPage(p)}
+                                                className={`w-8 h-8 text-xs font-semibold rounded-lg transition-colors ${p === page ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                    }`}
+                                            >
+                                                {p}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page === totalPages}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next →
+                                </button>
+                            </div>
+                        );
+                    })()}
+                </>
+            )}
+        </div>
+    );
 };
 
 const Analytics = () => {
@@ -227,9 +328,21 @@ const Analytics = () => {
             count: timelineMap[date]
         }));
 
-        const galleryImages = [...allPotholes]
+        // Gallery: pothole-specific images only (no cracks)
+        const galleryPotholeOnly = [];
+        visiblePotholeFiles.forEach(f => {
+            if (f.data) {
+                const filtered = f.data.filter(p => {
+                    if (p.is_hidden) return false;
+                    if (roiPolygon && !isPointInPolygon([p.lat, p.lon], roiPolygon)) return false;
+                    return true;
+                });
+                galleryPotholeOnly.push(...filtered);
+            }
+        });
+
+        const galleryImages = [...galleryPotholeOnly]
             .sort((a, b) => b.confidence - a.confidence)
-            .slice(0, 50)
             .map(p => ({
                 url: p.image_url,
                 confidence: p.confidence,
@@ -352,7 +465,12 @@ const Analytics = () => {
 
     const tabs = [
         { id: 'iri', label: 'IRI Analysis', icon: Activity },
-        { id: 'pothole', label: 'Pothole Detection', icon: AlertTriangle },
+        { id: 'pothole', label: 'Potholes', icon: AlertTriangle },
+        { id: 'cracking', label: 'Cracking', icon: Zap },
+        { id: 'patching', label: 'Patching', icon: Layers },
+        { id: 'rutting', label: 'Rutting', icon: Equal },
+        { id: 'noise', label: 'Noise', icon: Bell },
+        { id: 'temperature', label: 'Temperature', icon: Thermometer },
         { id: 'pavement', label: 'Road Type', icon: MapIcon },
         { id: 'traffic', label: 'Traffic Volume', icon: Truck },
         { id: 'rehab', label: 'Road Rehabilitation', icon: Construction },
@@ -435,7 +553,7 @@ const Analytics = () => {
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                                        className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap min-w-[160px] ${activeTab === tab.id
                                             ? 'bg-blue-50 text-blue-700 shadow-sm'
                                             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                             }`}
@@ -606,50 +724,14 @@ const Analytics = () => {
                                             </div>
                                         </div>
 
-                                        {/* Image Gallery */}
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                            <div className="flex justify-between items-center mb-6">
-                                                <h3 className="text-lg font-bold text-gray-900">Pothole Image Gallery</h3>
-                                                <span className="text-sm text-gray-500">
-                                                    Showing top {potholeAnalytics.galleryImages.length} by confidence
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                                {potholeAnalytics.galleryImages.map((img, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="relative group rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer aspect-square"
-                                                        onClick={() => window.open(img.url, '_blank')}
-                                                    >
-                                                        <img
-                                                            src={img.url}
-                                                            alt={`Pothole ${idx + 1} `}
-                                                            className="w-full h-full object-cover"
-                                                            loading="lazy"
-                                                            onError={(e) => {
-                                                                // Hide the entire card when image fails to load
-                                                                e.target.closest('.aspect-square').style.display = 'none';
-                                                            }}
-                                                        />
-                                                        {/* Confidence Badge */}
-                                                        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold text-white shadow brightness-110 ${img.confidence >= 0.8 ? 'bg-green-600' :
-                                                            img.confidence >= 0.5 ? 'bg-amber-500' : 'bg-rose-600'
-                                                            }`}>
-                                                            {(img.confidence * 100).toFixed(0)}%
-                                                        </div>
-                                                        {/* Hover Overlay */}
-                                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <span className="text-white text-xs font-medium">Click to enlarge</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {potholeAnalytics.galleryImages.length === 0 && (
-                                                <div className="text-center py-12 text-gray-400">
-                                                    No images available
-                                                </div>
-                                            )}
-                                        </div>
+                                        {/* Pothole Image Gallery */}
+                                        <PaginatedGallery
+                                            images={potholeAnalytics.galleryImages}
+                                            title="Pothole Image Gallery"
+                                            hoverBorderColor="hover:border-blue-400"
+                                            getUrl={(img) => img.url}
+                                        />
+
                                     </>
                                 ) : (
                                     <EmptyState message="No Pothole data available. Please upload files in the sidebar." />
@@ -657,29 +739,159 @@ const Analytics = () => {
                             </div>
                         )}
 
-                        {/* Road Rehabilitation Section */}
-                        {activeTab === 'rehab' && (
-                            <div className="space-y-6">
-                                {potholeAnalytics ? (
-                                    <>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <KpiCard title="Pothole Density" value={`${((potholeAnalytics.totalCount / 100) * 10).toFixed(1)}%`} trend="" status="neutral" />
-                                            <KpiCard title="Avg IRI" value={iriAnalytics?.stats?.avgIri || 'N/A'} unit="m/km" trend="" status="neutral" />
-                                            <KpiCard title="Estimated Cost" value={`₱${potholeAnalytics.totalRepairCost.toLocaleString()}`} trend="" status="neutral" />
-                                        </div>
-                                        <DiagnosisCard
-                                            diagnosis={getPotholeDiagnosis(potholeAnalytics.totalCount)}
-                                            metrics={{
-                                                density: (potholeAnalytics.totalCount / 100) * 10,
-                                                iri: parseFloat(iriAnalytics?.stats?.avgIri) || 0
-                                            }}
-                                        />
-                                    </>
-                                ) : (
-                                    <EmptyState message="No Pothole data available. Please upload detection data to generate rehabilitation recommendations." />
-                                )}
-                            </div>
+                        {/* Cracking Section */}
+                        {activeTab === 'cracking' && (() => {
+                            const visibleCrackFiles = crackFiles.filter(f => f.visible);
+                            let allCracks = [];
+                            visibleCrackFiles.forEach(f => {
+                                if (f.data) {
+                                    const filtered = f.data.filter(c => {
+                                        if (c.is_hidden) return false;
+                                        if (roiPolygon && !isPointInPolygon([c.lat, c.lon], roiPolygon)) return false;
+                                        return true;
+                                    });
+                                    allCracks = [...allCracks, ...filtered];
+                                }
+                            });
+                            const totalCracks = allCracks.length;
+                            const totalLength = allCracks.reduce((sum, c) => sum + (parseFloat(c.measurement) || 0), 0);
+                            const avgConf = totalCracks > 0
+                                ? (allCracks.reduce((s, c) => s + (c.confidence || 0), 0) / totalCracks * 100).toFixed(1)
+                                : null;
+
+                            return (
+                                <div className="space-y-6">
+                                    {totalCracks > 0 ? (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <KpiCard title="Total Cracks" value={totalCracks} unit="detections" trend="" status="danger" />
+                                                <KpiCard title="Total Crack Length" value={totalLength.toFixed(2)} unit="m" trend="" status="warning" />
+                                                <KpiCard title="Avg Confidence" value={`${avgConf}%`} trend="" status="success" />
+                                            </div>
+                                            {/* Crack Image Gallery */}
+                                            {(() => {
+                                                const crackImages = allCracks
+                                                    .filter(c => c.image_url)
+                                                    .sort((a, b) => b.confidence - a.confidence);
+                                                return crackImages.length > 0 ? (
+                                                    <PaginatedGallery
+                                                        images={crackImages}
+                                                        title="Crack Image Gallery"
+                                                        hoverBorderColor="hover:border-yellow-400"
+                                                        getUrl={(img) => img.image_url}
+                                                        emptyFallback={null}
+                                                    />
+                                                ) : (
+                                                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-center">
+                                                        <Zap className="w-10 h-10 mx-auto mb-3 text-yellow-400" />
+                                                        <h3 className="text-lg font-bold text-gray-800 mb-1">Detailed Cracking Analysis</h3>
+                                                        <p className="text-sm text-gray-500">Full crack severity classification, distribution maps, and rehabilitation recommendations are coming in a future update.</p>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </>
+                                    ) : (
+                                        <EmptyState message="No crack detection data available. Upload crack CSV files in the sidebar." />
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Patching Section */}
+                        {activeTab === 'patching' && (
+                            <ComingSoonSection
+                                icon={Layers}
+                                label="Patching Analysis"
+                                color="blue"
+                                description="Patch detection and condition scoring will allow you to assess the quality and coverage of existing road repairs. This section is under active development."
+                            />
                         )}
+
+                        {/* Rutting Section */}
+                        {activeTab === 'rutting' && (
+                            <ComingSoonSection
+                                icon={Equal}
+                                label="Rutting Analysis"
+                                color="orange"
+                                description="Rutting is a longitudinal surface depression along wheel paths caused by permanent deformation of pavement layers under repeated traffic loading. Rut depth measurement and severity analysis are coming in a future update."
+                            />
+                        )}
+
+                        {/* Noise Section */}
+                        {activeTab === 'noise' && (
+                            <ComingSoonSection
+                                icon={Bell}
+                                label="Road Noise Analysis"
+                                color="purple"
+                                description="Acoustic road surface analysis will correlate pavement texture with rolling noise levels for environmental assessment. This section is under active development."
+                            />
+                        )}
+
+                        {/* Temperature Section */}
+                        {activeTab === 'temperature' && (
+                            <ComingSoonSection
+                                icon={Thermometer}
+                                label="Temperature Analysis"
+                                color="red"
+                                description="Thermal pavement monitoring will track surface temperature gradients to predict heat-related distress and optimize rehabilitation timing. This section is under active development."
+                            />
+                        )}
+
+                        {/* Road Rehabilitation Section */}
+                        {activeTab === 'rehab' && (() => {
+                            // Crack data for rehab card
+                            const visibleCrackFiles = crackFiles.filter(f => f.visible);
+                            let allCracks = [];
+                            visibleCrackFiles.forEach(f => {
+                                if (f.data) {
+                                    allCracks = [...allCracks, ...f.data.filter(c => !c.is_hidden)];
+                                }
+                            });
+                            const crackCount = allCracks.length;
+                            const crackLength = allCracks.reduce((s, c) => s + (parseFloat(c.measurement) || 0), 0);
+
+                            return (
+                                <div className="space-y-6">
+                                    {potholeAnalytics ? (
+                                        <>
+                                            {/* Core rehab KPIs */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <KpiCard title="Pothole Density" value={`${((potholeAnalytics.totalCount / 100) * 10).toFixed(1)}%`} trend="" status="neutral" />
+                                                <KpiCard title="Avg IRI" value={iriAnalytics?.stats?.avgIri || 'N/A'} unit="m/km" trend="" status="neutral" />
+                                                <KpiCard title="Estimated Cost" value={`₱${potholeAnalytics.totalRepairCost.toLocaleString()}`} trend="" status="neutral" />
+                                            </div>
+
+                                            {/* Additional distress indicators */}
+                                            <div>
+                                                <h3 className="text-base font-semibold text-gray-700 mb-3">Additional Distress Indicators</h3>
+                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                                    <KpiCard
+                                                        title="Cracking"
+                                                        value={crackCount > 0 ? crackLength.toFixed(1) : 'N/A'}
+                                                        unit={crackCount > 0 ? 'm total' : ''}
+                                                        trend="" status="neutral"
+                                                    />
+                                                    <KpiCard title="Patching" value="N/A" trend="" status="neutral" />
+                                                    <KpiCard title="Rutting" value="N/A" trend="" status="neutral" />
+                                                    <KpiCard title="Noise" value="N/A" trend="" status="neutral" />
+                                                    <KpiCard title="Temperature" value="N/A" trend="" status="neutral" />
+                                                </div>
+                                            </div>
+
+                                            <DiagnosisCard
+                                                diagnosis={getPotholeDiagnosis(potholeAnalytics.totalCount)}
+                                                metrics={{
+                                                    density: (potholeAnalytics.totalCount / 100) * 10,
+                                                    iri: parseFloat(iriAnalytics?.stats?.avgIri) || 0
+                                                }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <EmptyState message="No Pothole data available. Please upload detection data to generate rehabilitation recommendations." />
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Traffic Section */}
                         {activeTab === 'traffic' && (
@@ -838,5 +1050,24 @@ const getPavementColor = (type) => {
 };
 
 // Mock s variable was used in prev code, fixed now.
+
+const colorMap = {
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-400', badge: 'bg-blue-100 text-blue-700' },
+    orange: { bg: 'bg-orange-50', border: 'border-orange-200', icon: 'text-orange-400', badge: 'bg-orange-100 text-orange-700' },
+    purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-400', badge: 'bg-purple-100 text-purple-700' },
+    red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-400', badge: 'bg-red-100 text-red-700' },
+};
+
+const ComingSoonSection = ({ icon: Icon, label, color = 'blue', description }) => {
+    const c = colorMap[color] || colorMap.blue;
+    return (
+        <div className={`flex flex-col items-center justify-center text-center p-12 rounded-xl border-2 border-dashed ${c.border} ${c.bg} min-h-[320px]`}>
+            <Icon className={`w-14 h-14 mb-4 ${c.icon}`} />
+            <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3 ${c.badge}`}>Coming Soon</span>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">{label}</h3>
+            <p className="text-sm text-gray-500 max-w-md leading-relaxed">{description}</p>
+        </div>
+    );
+};
 
 export default Analytics;
