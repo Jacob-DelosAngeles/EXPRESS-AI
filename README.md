@@ -231,4 +231,4 @@ If you use this system or its components in academic work, please cite:
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** License. See [LICENSE](LICENSE) for details.

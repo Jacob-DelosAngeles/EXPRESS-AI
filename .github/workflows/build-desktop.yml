@@ -3,7 +3,7 @@ name: Build Desktop Installer
 on:
   push:
     tags:
-      - 'v*'   # Triggers on v2.0.0, v2.1.0, etc.
+      - 'v*'
 
 jobs:
   build-windows:
@@ -13,61 +13,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Python: bundle the FastAPI sidecar ──────────────────────────────
+      # --- Python: bundle the FastAPI sidecar ---
       - name: Setup Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install Python dependencies
-        shell: bash
         run: |
           pip install pyinstaller
           pip install -r server/requirements.txt
 
       - name: Bundle Python backend with PyInstaller
-        shell: bash
         run: |
           cd desktop
           pyinstaller pyinstaller.spec
-        # Output: desktop/dist/daan-server/
 
-      # ── Node: build the React frontend ─────────────────────────────────
+      # --- Node: build the React frontend ---
       - name: Setup Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Install frontend dependencies
-        shell: bash
+      - name: Install and build React frontend
         run: |
           cd client
           npm ci
-
-      - name: Build React frontend
-        shell: bash
-        run: |
-          cd client
           npm run build
-        # Output: client/dist/
 
-      # ── Electron: package into .exe ─────────────────────────────────────
+      # --- Electron: package into .exe ---
       - name: Install Electron dependencies
-        shell: bash
         run: |
           cd desktop/electron
-          npm ci
+          npm install
 
       - name: Build Windows installer
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd desktop/electron
           npm run build:win
-        # Output: desktop/dist/electron/DAAN-FERN Setup 2.x.x.exe
 
-      # ── GitHub Release: upload the installer ───────────────────────────
+      # --- Upload the installer to GitHub Release ---
       - name: Upload installer to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
