@@ -18,9 +18,12 @@ import sys
 from pathlib import Path
 
 # Resolve paths
-DESKTOP_DIR = os.path.dirname(os.path.abspath(SPECPATH if 'SPECPATH' in dir() else '.'))
+# NOTE: SPECPATH is already the directory containing pyinstaller.spec (i.e. desktop/)
+# Do NOT wrap it in os.path.dirname() — that would go up one extra level to the project root.
+DESKTOP_DIR = os.path.abspath(SPECPATH if 'SPECPATH' in dir() else '.')
 PROJECT_ROOT = os.path.dirname(DESKTOP_DIR)
 SERVER_DIR = os.path.join(PROJECT_ROOT, 'server')
+
 
 block_cipher = None
 
