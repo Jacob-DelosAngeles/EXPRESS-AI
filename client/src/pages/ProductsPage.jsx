@@ -16,7 +16,7 @@ const ProductsPage = () => {
                             <span className="pp-badge-ping"></span>
                             <span className="pp-badge-dot"></span>
                         </span>
-                        New Version 2.4.0 Available
+                        New Version 2.0.0 Available
                     </div>
 
                     <h1 className="pp-hero-title">
@@ -71,11 +71,11 @@ const ProductsPage = () => {
                                 <div className="pp-meta-grid">
                                     <div className="pp-meta-item">
                                         <span className="pp-meta-label">Version</span>
-                                        <span className="pp-meta-value">v2.4.0</span>
+                                        <span className="pp-meta-value">v2.0.0</span>
                                     </div>
                                     <div className="pp-meta-item">
                                         <span className="pp-meta-label">Size</span>
-                                        <span className="pp-meta-value">145 MB</span>
+                                        <span className="pp-meta-value">176 MB</span>
                                     </div>
                                     <div className="pp-meta-item">
                                         <span className="pp-meta-label">License</span>
@@ -89,7 +89,7 @@ const ProductsPage = () => {
 
                                 <div className="pp-cta-buttons">
                                     <a
-                                        href="https://github.com/Jacob-DelosAngeles/DAAN-FERN/releases/download/v2.0.0/DAAN-FERN%20Setup%202.0.0.exe"
+                                        href="https://github.com/Jacob-DelosAngeles/DAAN-FERN/releases/download/v2.0.0/DAAN-FERN-Setup-2.0.0.exe"
                                         className="pp-download-btn"
                                         id="download-installer-btn"
                                         download
