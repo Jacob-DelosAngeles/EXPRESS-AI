@@ -1,5 +1,5 @@
 """
-Desktop Authentication Stub for DAAN-FERN
+Desktop Authentication Stub for Express-AI
 
 Replaces Clerk authentication with a local "auto-superuser" pattern.
 In Desktop Mode, there is exactly ONE user who owns the computer,

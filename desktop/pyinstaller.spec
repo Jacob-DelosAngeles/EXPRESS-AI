@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec file for DAAN-FERN Desktop Backend
+PyInstaller spec file for Express-AI Desktop Backend
 
 This bundles the FastAPI server + all dependencies into a single
 distributable folder or executable.
@@ -10,7 +10,7 @@ Usage:
     pyinstaller pyinstaller.spec
     
 Output:
-    desktop/dist/daan-server/    (folder with daan-server.exe + dependencies)
+    desktop/dist/express-server/    (folder with express-server.exe + dependencies)
 """
 
 import os
@@ -122,6 +122,24 @@ a = Analysis(
         'httpx',          # Used by Clerk only
         'psycopg2',       # PostgreSQL driver
         'gunicorn',       # Unix-only production server
+        # Exclude heavy packages not needed in desktop
+        'matplotlib',     # Only used for chart generation (not needed offline)
+        'tkinter',        # GUI toolkit pulled in by matplotlib
+        '_tkinter',
+        'tcl',
+        'tk',
+        'PIL',            # Pillow (matplotlib dep, we use cv2 instead)
+        'tornado',        # Jupyter/notebook dependency
+        'notebook',
+        'IPython',
+        'jedi',
+        'pygments',
+        'setuptools',
+        'pip',
+        'distutils',
+        'unittest',
+        'test',
+        'pydoc_data',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -136,7 +154,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='daan-server',
+    name='express-server',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -155,5 +173,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='daan-server',
+    name='express-server',
 )

@@ -1,10 +1,10 @@
 /**
- * DAAN-FERN Desktop — Electron Main Process
+ * EXPRESS-AI Desktop — Electron Main Process
  *
  * Lifecycle:
  *   1. Show splash screen
- *   2. Spawn the Python backend (daan-server.exe or desktop_main.py)
- *   3. Wait for "DAAN_PORT=XXXX" on stdout
+ *   2. Spawn the Python backend (express-server.exe or desktop_main.py)
+ *   3. Wait for "DAAN_PORT=XXXX" on stdout (internal sidecar protocol)
  *   4. Load the React frontend at localhost:{port}
  *   5. On close, kill the Python process
  */
@@ -16,7 +16,7 @@ const log = require("electron-log");
 
 // Configure logging
 log.transports.file.level = "info";
-log.info("DAAN-FERN Desktop starting...");
+log.info("EXPRESS-AI Desktop starting...");
 
 let mainWindow = null;
 let splashWindow = null;
@@ -45,7 +45,7 @@ function getBackendCommand() {
 
     // Production: run bundled executable
     const resourcePath = process.resourcesPath;
-    const exeName = process.platform === "win32" ? "daan-server.exe" : "daan-server";
+    const exeName = process.platform === "win32" ? "express-server.exe" : "express-server";
 
     return {
         command: path.join(resourcePath, "backend", exeName),
@@ -147,7 +147,7 @@ function createMainWindow(port) {
         height: 900,
         minWidth: 1024,
         minHeight: 700,
-        title: "DAAN-FERN",
+        title: "EXPRESS-AI",
         show: false,
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
@@ -198,7 +198,7 @@ app.whenReady().then(async () => {
     } catch (err) {
         log.error(`Failed to start: ${err.message}`);
         dialog.showErrorBox(
-            "DAAN-FERN Startup Error",
+            "EXPRESS-AI Startup Error",
             `Could not start the backend server:\n\n${err.message}\n\nPlease check the logs at:\n${log.transports.file.getFile().path}`
         );
         app.quit();

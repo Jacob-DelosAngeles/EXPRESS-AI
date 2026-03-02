@@ -1,6 +1,6 @@
-# DAAN-FERN Desktop Application
+# EXPRESS-AI Desktop Application
 
-This directory contains everything needed to run DAAN-FERN as a standalone
+This directory contains everything needed to run EXPRESS-AI as a standalone
 desktop application (Electron + Python backend).
 
 ## Architecture

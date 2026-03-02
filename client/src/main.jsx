@@ -6,9 +6,9 @@ import './index.css'
 import App from './App.jsx'
 
 // ── Desktop Mode Detection ──────────────────────────────────
-// When running inside Electron, window.daanDesktop is set by preload.js.
+// When running inside Electron, window.expressAI is set by preload.js.
 // In desktop mode, we skip Clerk entirely (no cloud auth needed).
-const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
 
 // Get Clerk publishable key from environment (only required in web mode)
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY

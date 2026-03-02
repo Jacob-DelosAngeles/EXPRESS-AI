@@ -14,7 +14,7 @@ import AuthLayout from './components/Auth/AuthLayout';
 import { clerkAppearance } from './utils/clerkTheme';
 
 // True when running inside the Electron desktop shell
-const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
 
 // Protected Route Component - uses our AuthContext which wraps Clerk
 const ProtectedRoute = ({ children }) => {

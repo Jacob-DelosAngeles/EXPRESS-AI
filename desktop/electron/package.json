@@ -1,9 +1,9 @@
 {
-  "name": "daan-fern-desktop",
-  "version": "2.0.0",
-  "description": "DAAN-FERN — Desktop Road Analytics Tool",
+  "name": "express-ai-desktop",
+  "version": "2.1.0",
+  "description": "EXPRESS-AI — Desktop Road Analytics Tool",
   "main": "main.js",
-  "author": "DAAN-FERN Team",
+  "author": "Express AI Team",
   "license": "CC-BY-NC-4.0",
   "scripts": {
     "start": "electron .",
@@ -20,8 +20,10 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.daan-fern.desktop",
-    "productName": "DAAN-FERN",
+    "appId": "com.expressai.desktop",
+    "productName": "EXPRESS-AI",
+    "asar": true,
+    "compression": "maximum",
     "directories": {
       "output": "../dist/electron"
     },
@@ -32,7 +34,7 @@
     ],
     "extraResources": [
       {
-        "from": "../dist/daan-server",
+        "from": "../dist/express-server",
         "to": "backend",
         "filter": ["**/*"]
       },
@@ -55,7 +57,7 @@
     "publish": {
       "provider": "github",
       "owner": "Jacob-DelosAngeles",
-      "repo": "DAAN-FERN",
+      "repo": "EXPRESS-AI",
       "releaseType": "release"
     }
   }

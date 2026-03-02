@@ -32,3 +32,6 @@ Notebooks/
 .DS_Store
 Thumbs.db
 *:Zone.Identifier
+
+#IRI Verification Checklist
+IRI_Verification_Checklist.md

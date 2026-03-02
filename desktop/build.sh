@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# DAAN-FERN Desktop — Full Build Script
+# Express-AI Desktop — Full Build Script
 #
 # This script builds the complete desktop application:
 #   1. Builds the React frontend (Vite)
@@ -23,14 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "============================================"
-echo " DAAN-FERN Desktop Build"  
+echo " EXPRESS-AI Desktop Build"  
 echo "============================================"
 echo ""
 
 # ─── Step 1: Build React Frontend ───────────────────────
 echo "▶ Step 1/3: Building React frontend..."
 cd "$PROJECT_ROOT/client"
-npm install
+npm ci
 npm run build
 echo "✓ Frontend built → client/dist/"
 echo ""
@@ -43,13 +43,13 @@ cd "$PROJECT_ROOT/desktop"
 pip install pyinstaller 2>/dev/null || true
 
 pyinstaller pyinstaller.spec --clean --noconfirm
-echo "✓ Backend bundled → desktop/dist/daan-server/"
+echo "✓ Backend bundled → desktop/dist/express-server/"
 echo ""
 
 # ─── Step 3: Package Electron App ───────────────────────
 echo "▶ Step 3/3: Packaging Electron installer..."
 cd "$PROJECT_ROOT/desktop/electron"
-npm install
+npm ci
 npm run build:win
 echo "✓ Installer created → desktop/dist/electron/"
 echo ""
@@ -59,5 +59,5 @@ echo " Build complete!"
 echo "============================================"
 echo ""
 echo "Output:"
-echo "  Installer: desktop/dist/electron/DAAN-FERN Setup *.exe"
+echo "  Installer: desktop/dist/electron/EXPRESS-AI Setup *.exe"
 echo ""

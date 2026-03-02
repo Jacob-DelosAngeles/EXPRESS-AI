@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Menu, X } from 'lucide-react';
 
-const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
 
 /**
  * Shared public-facing navbar used by LandingPage and ProductsPage.

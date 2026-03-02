@@ -29,7 +29,7 @@ jobs:
       - name: Bundle Python backend with PyInstaller
         run: |
           cd desktop
-          pyinstaller pyinstaller.spec
+          pyinstaller pyinstaller.spec --clean --noconfirm
 
       # --- Node: build the React frontend ---
       - name: Setup Node.js 18
@@ -47,7 +47,7 @@ jobs:
       - name: Install Electron dependencies
         run: |
           cd desktop/electron
-          npm install
+          npm ci
 
       - name: Build Windows installer
         env:

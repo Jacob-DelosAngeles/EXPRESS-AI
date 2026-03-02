@@ -5,7 +5,7 @@ import { fileService, setTokenGetter } from '../services/api';
 const AuthContext = createContext(null);
 
 // ── Desktop Mode Detection ──────────────────────────────────
-const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
 
 // ── Desktop Auth Provider (no Clerk) ────────────────────────
 const DesktopAuthProvider = ({ children }) => {

@@ -1,5 +1,5 @@
 """
-DAAN-FERN Desktop Mode — Main Entry Point
+Express-AI Desktop Mode — Main Entry Point
 
 This script starts the FastAPI server in "Desktop Mode":
   1. Sets environment variables for SQLite + Local Storage
@@ -23,29 +23,41 @@ from pathlib import Path
 # ============================================================
 # STEP 0: Determine project paths
 # ============================================================
-# When frozen by PyInstaller, __file__ points inside a temp extraction
-# directory (_MEIPASS), NOT the original source tree. The server code
-# is bundled there directly (not in a 'server/' subfolder).
-# In dev mode, we navigate relative to the source tree as before.
+# When frozen by PyInstaller, sys._MEIPASS varies by version:
+#   - PyInstaller 5.x: _MEIPASS = directory containing the exe
+#   - PyInstaller 6.x: _MEIPASS = _internal/ subdirectory
+# The server code is bundled into a 'server/' subdirectory inside
+# the bundle. We probe multiple candidate paths to find it.
 if getattr(sys, 'frozen', False):
     # Running as compiled PyInstaller exe
-    # sys._MEIPASS is the temp folder where all bundled files are extracted.
-    # The pyinstaller.spec bundles our code into a 'server' subdirectory inside it.
-    SERVER_DIR = Path(sys._MEIPASS) / "server"
-    DESKTOP_DIR = Path(sys._MEIPASS)  # Not meaningful in frozen mode; kept for compat
-    PROJECT_ROOT = Path(sys._MEIPASS) # Same
+    exe_dir = Path(sys.executable).resolve().parent
+    meipass = Path(sys._MEIPASS) if hasattr(sys, '_MEIPASS') else exe_dir
+
+    # Probe for the 'server' directory in order of likelihood
+    candidates = [
+        meipass / "server",              # PyInstaller 6.x (_internal/server/)
+        exe_dir / "_internal" / "server", # Fallback: exe_dir/_internal/server/
+        exe_dir / "server",              # PyInstaller 5.x (exe_dir/server/)
+        meipass,                         # Last resort: _MEIPASS itself
+    ]
+    SERVER_DIR = next((p for p in candidates if p.is_dir()), meipass / "server")
+    DESKTOP_DIR = exe_dir
+    PROJECT_ROOT = exe_dir
 else:
     # Running in development (raw Python)
     DESKTOP_DIR = Path(__file__).resolve().parent.parent  # desktop/
-    PROJECT_ROOT = DESKTOP_DIR.parent                     # DAAN-FERN/
-    SERVER_DIR = PROJECT_ROOT / "server"                  # DAAN-FERN/server/
+    PROJECT_ROOT = DESKTOP_DIR.parent                     # project root
+    SERVER_DIR = PROJECT_ROOT / "server"                  # project_root/server/
 
 # ============================================================
 # STEP 1: Apply desktop config BEFORE any server imports
 # ============================================================
 # Add desktop/backend (or _MEIPASS in frozen mode) to path for our modules
 if getattr(sys, 'frozen', False):
-    sys.path.insert(0, str(SERVER_DIR))  # _MEIPASS already has everything
+    # In frozen mode, add both meipass and exe_dir for module resolution
+    sys.path.insert(0, str(SERVER_DIR))
+    sys.path.insert(0, str(meipass))
+    sys.path.insert(0, str(exe_dir))
 else:
     sys.path.insert(0, str(DESKTOP_DIR / "backend"))
 
@@ -58,7 +70,14 @@ desktop_paths = apply_desktop_overrides()
 sys.path.insert(0, str(SERVER_DIR))
 
 # Also set working directory to server/ so relative paths work
-os.chdir(SERVER_DIR)
+if SERVER_DIR.is_dir():
+    os.chdir(SERVER_DIR)
+else:
+    # Fallback: use exe directory in frozen mode, or raise in dev
+    if getattr(sys, 'frozen', False):
+        os.chdir(exe_dir)
+    else:
+        raise FileNotFoundError(f"Server directory not found: {SERVER_DIR}")
 
 # ============================================================
 # STEP 3: Override the uploads directory
@@ -74,11 +93,14 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger("daan-desktop")
-logger.info(f"DAAN-FERN Desktop Mode")
-logger.info(f"Project root: {PROJECT_ROOT}")
+logger = logging.getLogger("express-ai-desktop")
+logger.info(f"Express-AI Desktop Mode")
+if getattr(sys, 'frozen', False):
+    logger.info(f"Frozen mode: exe_dir={exe_dir}, _MEIPASS={meipass}")
 logger.info(f"Server dir:   {SERVER_DIR}")
 logger.info(f"Data dir:     {desktop_paths['data_dir']}")
+logger.info(f"Database:     {desktop_paths['db_path']}")
+logger.info(f"Storage:      {desktop_paths['storage_path']}")
 logger.info(f"Database:     {desktop_paths['db_path']}")
 logger.info(f"Storage:      {desktop_paths['storage_path']}")
 
@@ -178,7 +200,7 @@ def mount_static_files(app):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DAAN-FERN Desktop Server")
+    parser = argparse.ArgumentParser(description="Express-AI Desktop Server")
     parser.add_argument("--port", type=int, default=0, 
                         help="Port to run on (0 = auto-detect)")
     parser.add_argument("--host", type=str, default="127.0.0.1",
@@ -206,7 +228,7 @@ def main():
     # Start uvicorn
     import uvicorn
     
-    logger.info(f"Starting DAAN-FERN Desktop on http://{args.host}:{port}")
+    logger.info(f"Starting Express-AI Desktop on http://{args.host}:{port}")
     
     uvicorn.run(
         app,

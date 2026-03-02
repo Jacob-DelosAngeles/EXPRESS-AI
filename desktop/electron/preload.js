@@ -1,14 +1,13 @@
 /**
- * DAAN-FERN Desktop — Electron Preload Script
+ * EXPRESS-AI Desktop — Electron Preload Script
  *
- * Exposes a safe bridge between the Electron shell and the React frontend.
- * The frontend can check `window.daanDesktop` to detect Desktop Mode
+ * The frontend can check `window.expressAI` to detect Desktop Mode
  * and get the backend port.
  */
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("daanDesktop", {
+contextBridge.exposeInMainWorld("expressAI", {
     // Flag so the React app knows it's running inside Electron
     isDesktop: true,
 

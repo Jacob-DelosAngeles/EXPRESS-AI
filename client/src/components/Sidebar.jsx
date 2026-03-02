@@ -751,7 +751,7 @@ const Sidebar = () => {
 
     // Step 2: Upload images
     if (imageFiles.length > 0) {
-      const isDesktop = window.daanDesktop?.isDesktop;
+      const isDesktop = window.expressAI?.isDesktop;
 
       if (!isDesktop) {
         // WEB MODE: Upload images DIRECTLY TO R2 (fast, parallel)

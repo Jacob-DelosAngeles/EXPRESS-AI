@@ -1,5 +1,5 @@
 """
-Desktop Configuration Overrides for DAAN-FERN
+Desktop Configuration Overrides for Express-AI
 
 This module patches the server's `core.config.settings` object
 to force Desktop Mode before any server code is imported.
@@ -14,19 +14,19 @@ from pathlib import Path
 
 def get_desktop_data_dir() -> Path:
     """
-    Get the platform-appropriate data directory for DAAN-FERN.
+    Get the platform-appropriate data directory for Express-AI.
     
-    Windows: %USERPROFILE%/.daan-fern/
-    macOS:   ~/Library/Application Support/daan-fern/
-    Linux:   ~/.local/share/daan-fern/
+    Windows: %USERPROFILE%/.express-ai/
+    macOS:   ~/Library/Application Support/express-ai/
+    Linux:   ~/.local/share/express-ai/
     """
     if sys.platform == "win32":
         base = Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
-        return base / ".daan-fern"
+        return base / ".express-ai"
     elif sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "daan-fern"
+        return Path.home() / "Library" / "Application Support" / "express-ai"
     else:
-        return Path.home() / ".local" / "share" / "daan-fern"
+        return Path.home() / ".local" / "share" / "express-ai"
 
 
 def apply_desktop_overrides():
@@ -43,7 +43,7 @@ def apply_desktop_overrides():
     (data_dir / "storage").mkdir(exist_ok=True)
     (data_dir / "db").mkdir(exist_ok=True)
     
-    db_path = data_dir / "db" / "daan_fern.db"
+    db_path = data_dir / "db" / "express_ai.db"
     storage_path = data_dir / "storage"
     
     # --- Force Desktop Mode via Environment Variables ---

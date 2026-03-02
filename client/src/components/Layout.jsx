@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
-const IS_DESKTOP = !!(window.daanDesktop?.isDesktop);
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
 
 const NavLink = ({ to, label }) => {
     const location = useLocation();
