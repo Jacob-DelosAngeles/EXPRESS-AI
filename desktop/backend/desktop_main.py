@@ -116,6 +116,27 @@ def find_open_port(start=8000, end=8100):
                 continue
     raise RuntimeError(f"No open port found between {start}-{end}")
 
+def _inject_stub_modules():
+    """
+    Inject stub modules for cloud-only packages that were excluded from
+    the PyInstaller bundle. This prevents ImportError when server modules
+    (e.g. clerk_auth.py) do top-level `import httpx`.
+    """
+    import types
+    stub_packages = [
+        'httpx', 'boto3', 'botocore', 's3transfer', 'psycopg2', 'gunicorn',
+        'matplotlib', 'matplotlib.pyplot',
+    ]
+    for pkg in stub_packages:
+        if pkg not in sys.modules:
+            stub = types.ModuleType(pkg)
+            stub.__path__ = []  # Make it look like a package
+            sys.modules[pkg] = stub
+    logger.info(f"Injected stub modules for excluded packages")
+
+# Inject stubs BEFORE any server imports that might trigger cloud-only deps
+_inject_stub_modules()
+
 
 def monkey_patch_auth():
     """
