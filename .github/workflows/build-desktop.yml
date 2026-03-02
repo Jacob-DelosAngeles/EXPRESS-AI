@@ -47,7 +47,7 @@ jobs:
       - name: Install Electron dependencies
         run: |
           cd desktop/electron
-          npm ci
+          npm install
 
       - name: Build Windows installer
         env:
