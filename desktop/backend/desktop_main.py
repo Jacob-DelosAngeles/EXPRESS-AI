@@ -236,15 +236,18 @@ def main():
     monkey_patch_storage()          # Prepares the storage class
     apply_storage_patch(port, args.host)  # Finalizes with correct port
     
-    # Print the port on stdout so Electron can read it
-    # This is the "sidecar protocol"
-    print(f"DAAN_PORT={port}", flush=True)
-    
     # Import the actual FastAPI app (AFTER patches are applied)
+    # This can take several seconds and may fail due to missing modules.
+    logger.info("Importing FastAPI application...")
     from main import app
     
     # Mount static file serving for images
     mount_static_files(app)
+    
+    # Print the port on stdout so Electron can read it.
+    # IMPORTANT: This MUST be after successful app import, so Electron
+    # doesn't open the browser window before the backend is ready.
+    print(f"DAAN_PORT={port}", flush=True)
     
     # Start uvicorn
     import uvicorn

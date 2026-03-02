@@ -110,6 +110,38 @@ a = Analysis(
         'utils',
         'utils.file_handler',
         'iri_calculator',
+        # --- Dynamically-loaded packages that PyInstaller misses ---
+        # passlib uses importlib to load hash handlers at runtime
+        'passlib.handlers',
+        'passlib.handlers.bcrypt',
+        'passlib.handlers.sha2_crypt',
+        'passlib.handlers.des_crypt',
+        'passlib.handlers.md5_crypt',
+        'passlib.handlers.pbkdf2',
+        'passlib.handlers.misc',
+        'passlib.handlers.argon2',
+        'passlib.handlers.scrypt',
+        # python-jose dynamically loads crypto backends
+        'jose',
+        'jose.jwt',
+        'jose.jws',
+        'jose.backends',
+        'jose.backends.native_backend',
+        'jose.backends.cryptography_backend',
+        'jose.utils',
+        'jose.constants',
+        'jose.exceptions',
+        # multipart form parsing
+        'multipart',
+        'multipart.multipart',
+        # pydantic validators
+        'pydantic',
+        'pydantic.deprecated',
+        'pydantic.deprecated.decorator',
+        # email validator
+        'email_validator',
+        # SQLAlchemy dialects (sqlite for desktop)
+        'sqlalchemy.dialects.sqlite',
     ],
     hookspath=[],
     hooksconfig={},

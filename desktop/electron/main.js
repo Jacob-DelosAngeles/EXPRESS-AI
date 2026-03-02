@@ -66,10 +66,10 @@ function startBackend() {
             env: { ...process.env, DEPLOYMENT_MODE: "desktop" },
         });
 
-        // Timeout after 30 seconds
+        // Timeout after 90 seconds (module loading can be slow on first run)
         const timeout = setTimeout(() => {
-            reject(new Error("Backend did not start within 30 seconds"));
-        }, 30000);
+            reject(new Error("Backend did not start within 90 seconds"));
+        }, 90000);
 
         // Listen for the port announcement
         backendProcess.stdout.on("data", (data) => {
