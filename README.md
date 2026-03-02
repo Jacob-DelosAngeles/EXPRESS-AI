@@ -1,8 +1,8 @@
 <div align="center">
 
-# DAAN-FERN
+# EXPRESS-AI
 
-**Digital Analytics for Asset-based Navigation of Roads**
+**Expert Platform for Road Evaluation and Smart Surveillance**
 
 *An AI-powered road condition monitoring and analytics platform for pavement asset management*
 
@@ -18,9 +18,9 @@
 
 ## Overview
 
-DAAN-FERN is a full-stack road condition monitoring system that combines **computer vision**, **GPS telemetry**, and **pavement engineering principles** to automate the detection, classification, and management of road surface distresses. The platform is designed to support local government units (LGUs) and road asset managers in the Philippines with data-driven, evidence-based pavement maintenance decisions.
+EXPRESS-AI is a full-stack road condition monitoring system that combines **computer vision**, **GPS telemetry**, and **pavement engineering principles** to automate the detection, classification, and management of road surface distresses. The platform is designed to support local government units (LGUs) and road asset managers in the Philippines with data-driven, evidence-based pavement maintenance decisions.
 
-Traditionally, road condition surveys are manual, time-consuming, and subjective. DAAN-FERN replaces this with a deployable mobile data collection pipeline paired with a web-based analytics dashboard — processing raw survey videos and GPS logs into actionable pavement health reports.
+Traditionally, road condition surveys are manual, time-consuming, and subjective. EXPRESS-AI replaces this with a deployable mobile data collection pipeline paired with a web-based analytics dashboard — processing raw survey videos and GPS logs into actionable pavement health reports.
 
 ---
 
