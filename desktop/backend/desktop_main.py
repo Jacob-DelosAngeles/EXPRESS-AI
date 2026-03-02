@@ -23,15 +23,31 @@ from pathlib import Path
 # ============================================================
 # STEP 0: Determine project paths
 # ============================================================
-DESKTOP_DIR = Path(__file__).resolve().parent.parent  # desktop/
-PROJECT_ROOT = DESKTOP_DIR.parent                     # DAAN-FERN/
-SERVER_DIR = PROJECT_ROOT / "server"                   # DAAN-FERN/server/
+# When frozen by PyInstaller, __file__ points inside a temp extraction
+# directory (_MEIPASS), NOT the original source tree. The server code
+# is bundled there directly (not in a 'server/' subfolder).
+# In dev mode, we navigate relative to the source tree as before.
+if getattr(sys, 'frozen', False):
+    # Running as compiled PyInstaller exe
+    # sys._MEIPASS is the temp folder where all bundled files are extracted.
+    # The pyinstaller.spec bundles our code into a 'server' subdirectory inside it.
+    SERVER_DIR = Path(sys._MEIPASS) / "server"
+    DESKTOP_DIR = Path(sys._MEIPASS)  # Not meaningful in frozen mode; kept for compat
+    PROJECT_ROOT = Path(sys._MEIPASS) # Same
+else:
+    # Running in development (raw Python)
+    DESKTOP_DIR = Path(__file__).resolve().parent.parent  # desktop/
+    PROJECT_ROOT = DESKTOP_DIR.parent                     # DAAN-FERN/
+    SERVER_DIR = PROJECT_ROOT / "server"                  # DAAN-FERN/server/
 
 # ============================================================
 # STEP 1: Apply desktop config BEFORE any server imports
 # ============================================================
-# Add desktop/backend to path so we can import our modules
-sys.path.insert(0, str(DESKTOP_DIR / "backend"))
+# Add desktop/backend (or _MEIPASS in frozen mode) to path for our modules
+if getattr(sys, 'frozen', False):
+    sys.path.insert(0, str(SERVER_DIR))  # _MEIPASS already has everything
+else:
+    sys.path.insert(0, str(DESKTOP_DIR / "backend"))
 
 from desktop_config import apply_desktop_overrides
 desktop_paths = apply_desktop_overrides()
