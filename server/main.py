@@ -17,8 +17,7 @@ try:
     from iri_calculator import IRICalculator
     logger.info("IRI Calculator imported successfully")
 except ImportError as e:
-    logger.error(f"Failed to import IRI Calculator: {e}")
-    exit(1)
+    logger.warning(f"IRI Calculator not available: {e} (non-fatal, IRI features disabled)")
 
 from api.v1.endpoints import auth, upload, iri, pothole, vehicle, pavement, presign, uploads
 from core.config import settings
