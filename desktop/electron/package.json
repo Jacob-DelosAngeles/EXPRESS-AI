@@ -36,17 +36,21 @@
       {
         "from": "../dist/express-server",
         "to": "backend",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../../client/dist",
         "to": "frontend",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": "nsis",
-      "icon": "../../client/public/logo.png"
+      "icon": "../../client/public/logos/express-ai-logo.png"
     },
     "nsis": {
       "oneClick": false,
