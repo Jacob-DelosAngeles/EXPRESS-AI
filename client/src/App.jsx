@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+
 import { SignIn, SignUp, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
@@ -15,6 +16,12 @@ import { clerkAppearance } from './utils/clerkTheme';
 
 // True when running inside the Electron desktop shell
 const IS_DESKTOP = !!(window.expressAI?.isDesktop);
+
+// Use HashRouter for desktop (file:// protocol) and BrowserRouter for web.
+// BrowserRouter uses /app/dashboard paths which fail on file:// (no server).
+// HashRouter uses #/app/dashboard which always resolves to index.html.
+const Router = IS_DESKTOP ? HashRouter : BrowserRouter;
+
 
 // Protected Route Component - uses our AuthContext which wraps Clerk
 const ProtectedRoute = ({ children }) => {
