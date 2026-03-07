@@ -321,76 +321,70 @@ export const generateReport = async (projectData, getToken = null) => {
             const rowGap = 20;
             const startX = 20;
 
-            // Render loop
+            // ── Phase 1: Fetch ALL images in parallel ──────────────────────────────
+            // Resolving images one-by-one (sequential await) adds ~300-500ms per image.
+            // Promise.all fires all requests simultaneously — for 10 images this is
+            // ~10x faster since they overlap in network time.
+            const imageResults = await Promise.all(
+                potholesWithImages.map(async (p) => {
+                    const filename = p.image_path || p.imagePath
+                        || (p.image_url ? p.image_url.split('/').pop().split('?')[0] : null);
+
+                    // Priority: storage_path proxy > filename proxy > raw URL (may be expired)
+                    let imgUrl;
+                    if (p.storage_path) {
+                        imgUrl = `${API_URL}/pothole/proxy?key=${encodeURIComponent(p.storage_path)}`;
+                    } else if (filename && !filename.startsWith('http') && !filename.startsWith('blob')) {
+                        imgUrl = `${API_URL}/pothole/image/${filename}`;
+                    } else {
+                        imgUrl = p.image_url;
+                    }
+
+                    try {
+                        return await loadImageAsBase64(imgUrl, token);
+                    } catch (_e) {
+                        // Silent fallback to raw URL
+                        try { return await loadImageAsBase64(p.image_url); } catch (_e2) { return null; }
+                    }
+                })
+            );
+
+            // ── Phase 2: Render into PDF sequentially (fast — pure in-memory ops) ──
             for (let i = 0; i < potholesWithImages.length; i++) {
                 const p = potholesWithImages[i];
+                const imgData = imageResults[i];
                 const col = i % 2; // 0 or 1
-
-                // Calculate position
                 const x = startX + (col * (imgWidth + colGap));
 
-                // Check if we need a new page BEFORE drawing
-                // If this is the START of a new row (col === 0), check if the row fits
+                // Check if we need a new page BEFORE drawing the start of a new row
                 if (col === 0) {
                     if (currentY + imgHeight + 20 > pageHeight - 30) {
                         doc.addPage();
                         pageNum++;
                         addFooter(pageNum);
-                        currentY = 20; // Reset Y to top for new page
+                        currentY = 20;
                     }
                 }
 
-                const y = currentY; // Use current Y for this row
+                const y = currentY;
 
-                try {
-                    // Always route through the backend proxy so we never hit a stale
-                    // presigned URL (they expire after 1-24h). The proxy re-fetches from
-                    // R2 on every call, so the PDF always gets a fresh image.
-                    //
-                    // Priority:
-                    //   1. storage_path  → /pothole/proxy?key=...  (fastest, most reliable)
-                    //   2. image_path / imagePath filename → /pothole/image/:filename (DB lookup)
-                    //   3. raw image_url  (last resort — may fail if presigned URL expired)
-
-                    const filename = p.image_path || p.imagePath
-                        || (p.image_url ? p.image_url.split('/').pop().split('?')[0] : null);
-
-                    let imgUrl;
-                    if (p.storage_path) {
-                        // Best path: direct storage key proxy — always fresh, no expiry risk
-                        imgUrl = `${API_URL}/pothole/proxy?key=${encodeURIComponent(p.storage_path)}`;
-                    } else if (filename && !filename.startsWith('http') && !filename.startsWith('blob')) {
-                        // Fallback: filename-based DB lookup proxy
-                        imgUrl = `${API_URL}/pothole/image/${filename}`;
-                    } else {
-                        // Last resort: use the raw URL as-is (presigned URL may be expired)
-                        imgUrl = p.image_url;
-                    }
-
-                    const imgData = await loadImageAsBase64(imgUrl, token);
+                if (imgData) {
                     doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
-                } catch (e) {
-                    console.warn("Failed to load image via proxy, falling back to original URL", e);
-                    try {
-                        // Fallback to original URL (external URLs usually don't need our token)
-                        const imgData = await loadImageAsBase64(p.image_url);
-                        doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
-                    } catch (e2) {
-                        // Draw placeholder box if image fails
-                        doc.setDrawColor(200);
-                        doc.rect(x, y, imgWidth, imgHeight);
-                        doc.setFontSize(8);
-                        doc.setTextColor(150);
-                        doc.text('Image not available', x + 15, y + 25);
-                    }
+                } else {
+                    // Placeholder box when all fetch attempts failed
+                    doc.setDrawColor(200);
+                    doc.rect(x, y, imgWidth, imgHeight);
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text('Image not available', x + 15, y + 25);
                 }
 
-                // Add ID label below image
+                // Label below image
                 doc.setFontSize(9);
                 doc.setTextColor(...COLORS.black);
                 doc.text(`ID: ${i + 1} | Conf: ${(p.confidence * 100).toFixed(0)}%`, x, y + imgHeight + 5);
 
-                // If this is the second column (col === 1), OR it's the last item, advance Y
+                // Advance Y at end of each row or last item
                 if (col === 1 || i === potholesWithImages.length - 1) {
                     currentY += (imgHeight + rowGap);
                 }

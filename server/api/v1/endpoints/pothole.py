@@ -8,7 +8,23 @@ from pathlib import Path
 import math
 import logging
 import json
+import time
 from datetime import datetime
+
+# ── Superuser ID TTL Cache ─────────────────────────────────────────────────
+# Avoids a DB round-trip on every image proxy call during PDF export.
+# Cache is invalidated after 5 minutes to pick up role changes.
+_superuser_cache: dict = {'ids': None, 'expires': 0.0}
+_SUPERUSER_CACHE_TTL = 300  # seconds
+
+def _get_superuser_ids(db) -> set:
+    now = time.monotonic()
+    if _superuser_cache['ids'] is None or now > _superuser_cache['expires']:
+        _superuser_cache['ids'] = {
+            u.id for u in db.query(UserModel).filter(UserModel.role == 'superuser').all()
+        }
+        _superuser_cache['expires'] = now + _SUPERUSER_CACHE_TTL
+    return _superuser_cache['ids']
 
 logger = logging.getLogger(__name__)
 from core.config import settings
@@ -520,7 +536,8 @@ def get_image_by_key(
             #   - the requesting user is a superuser, OR
             #   - the file belongs to a superuser (globally shared data)
             # This mirrors the visibility rule applied in the main /process endpoint.
-            superuser_ids = {u.id for u in db.query(UserModel).filter(UserModel.role == 'superuser').all()}
+            # Use TTL-cached superuser IDs — avoids a DB query on every proxied image
+            superuser_ids = _get_superuser_ids(db)
             is_superuser_file = folder_user_id in superuser_ids
             if folder_user_id != current_user.id \
                     and not current_user.is_superuser \
