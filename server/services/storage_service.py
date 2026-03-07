@@ -239,7 +239,7 @@ class R2StorageService(StorageService):
             url = self.s3_client.generate_presigned_url(
                 ClientMethod='get_object',
                 Params={'Bucket': self.bucket_name, 'Key': file_path},
-                ExpiresIn=3600
+                ExpiresIn=86400  # 24 hours — prevents expiry during long work sessions
             )
             return url
         except Exception:

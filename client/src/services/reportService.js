@@ -343,24 +343,28 @@ export const generateReport = async (projectData, getToken = null) => {
                 const y = currentY; // Use current Y for this row
 
                 try {
-                    // Use backend proxy to avoid CORS issues with R2/Cloud storage
-                    // The report runs in browser, so /api/v1... goes through Vite proxy to Backend
-                    let imgUrl = p.image_url;
+                    // Always route through the backend proxy so we never hit a stale
+                    // presigned URL (they expire after 1-24h). The proxy re-fetches from
+                    // R2 on every call, so the PDF always gets a fresh image.
+                    //
+                    // Priority:
+                    //   1. storage_path  → /pothole/proxy?key=...  (fastest, most reliable)
+                    //   2. image_path / imagePath filename → /pothole/image/:filename (DB lookup)
+                    //   3. raw image_url  (last resort — may fail if presigned URL expired)
 
-                    // If we have a filename/path, prefer the local proxy
-                    // Check if 'image_path' (DB/Raw) or 'imagePath' (Video) exists
-                    const filename = p.image_path || p.imagePath || (p.image_url ? p.image_url.split('/').pop().split('?')[0] : null);
+                    const filename = p.image_path || p.imagePath
+                        || (p.image_url ? p.image_url.split('/').pop().split('?')[0] : null);
 
-                    // BEST METHOD: Use storage_path if available (direct proxy access)
-                    // This bypasses filename lookup issues in the DB
+                    let imgUrl;
                     if (p.storage_path) {
+                        // Best path: direct storage key proxy — always fresh, no expiry risk
                         imgUrl = `${API_URL}/pothole/proxy?key=${encodeURIComponent(p.storage_path)}`;
                     } else if (filename && !filename.startsWith('http') && !filename.startsWith('blob')) {
-                        // Fallback: Filename lookup proxy
+                        // Fallback: filename-based DB lookup proxy
                         imgUrl = `${API_URL}/pothole/image/${filename}`;
-                    } else if (filename && p.image_url && p.image_url.includes('http')) {
-                        // Even if we have a full URL, try to use the proxy if it looks like a cloud URL
-                        imgUrl = `${API_URL}/pothole/image/${filename}`;
+                    } else {
+                        // Last resort: use the raw URL as-is (presigned URL may be expired)
+                        imgUrl = p.image_url;
                     }
 
                     const imgData = await loadImageAsBase64(imgUrl, token);

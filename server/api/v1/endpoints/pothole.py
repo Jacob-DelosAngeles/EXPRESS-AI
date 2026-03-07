@@ -515,8 +515,17 @@ def get_image_by_key(
         # Path format: {user_id}/{category}/{filename}
         try:
             folder_user_id = int(key.split('/')[0])
-            if folder_user_id != current_user.id and not current_user.is_superuser:
-                 raise HTTPException(status_code=403, detail="Unauthorized access to this file")
+            # Allow access if:
+            #   - the file belongs to the requesting user, OR
+            #   - the requesting user is a superuser, OR
+            #   - the file belongs to a superuser (globally shared data)
+            # This mirrors the visibility rule applied in the main /process endpoint.
+            superuser_ids = {u.id for u in db.query(UserModel).filter(UserModel.role == 'superuser').all()}
+            is_superuser_file = folder_user_id in superuser_ids
+            if folder_user_id != current_user.id \
+                    and not current_user.is_superuser \
+                    and not is_superuser_file:
+                raise HTTPException(status_code=403, detail="Unauthorized access to this file")
         except (ValueError, IndexError):
             # If path doesn't start with an ID, check if it's a shared/public file
             # For now, we enforce the {id}/ structure for security
