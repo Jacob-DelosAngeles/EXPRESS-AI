@@ -31,7 +31,7 @@ echo ""
 echo "▶ Step 1/3: Building React frontend..."
 cd "$PROJECT_ROOT/client"
 npm ci
-npm run build
+ELECTRON_BUILD=true npm run build
 echo "✓ Frontend built → client/dist/"
 echo ""
 

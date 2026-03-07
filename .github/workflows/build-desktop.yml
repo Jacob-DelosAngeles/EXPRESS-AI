@@ -42,6 +42,8 @@ jobs:
           # A placeholder key is required so main.jsx doesn't throw a fatal error
           # during build. In desktop mode, Clerk is bypassed entirely at runtime.
           VITE_CLERK_PUBLISHABLE_KEY: pk_live_placeholder_desktop_build_only
+          # Use './' base path so Electron's file:// protocol resolves assets correctly.
+          ELECTRON_BUILD: 'true'
         run: |
           cd client
           npm ci
