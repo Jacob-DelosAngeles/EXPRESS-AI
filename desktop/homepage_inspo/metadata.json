@@ -1,0 +1,5 @@
+{
+  "name": "Express AI",
+  "description": "AI-powered road survey processing dashboard with real-time telemetry and job tracking.",
+  "requestFramePermissions": []
+}

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import LandingNavbar from '../components/LandingNavbar';
 import './LandingPage.css';
 
+const IS_DESKTOP = !!(window.expressAI?.isDesktop);
+
 const LandingPage = () => {
     const { user } = useAuth();
 
@@ -34,14 +36,28 @@ const LandingPage = () => {
                 </div>
                 <div className="hero-video" id="demo">
                     <div className="video-wrapper">
-                        <iframe
-                            src="https://www.youtube.com/embed/jEHBOK0Ck08?autoplay=1&mute=1&loop=1&playlist=jEHBOK0Ck08&controls=0&modestbranding=1&rel=0&showinfo=0"
-                            title="Express AI Demo"
-                            frameBorder="0"
-                            allow="autoplay; encrypted-media"
-                            allowFullScreen
-                            className="video-iframe"
-                        ></iframe>
+                        {IS_DESKTOP ? (
+                            // YouTube embeds fail in Electron (Error 153 — sandboxed Chromium).
+                            // Show a static placeholder card instead.
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                height: '100%', background: 'rgba(255,255,255,0.04)',
+                                borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#64748b', fontSize: '14px', gap: '10px', padding: '32px'
+                            }}>
+                                <span style={{ fontSize: '28px' }}>🎬</span>
+                                <span>Demo video available at<br /><strong style={{ color: '#93c5fd' }}>express-daan.vercel.app</strong></span>
+                            </div>
+                        ) : (
+                            <iframe
+                                src="https://www.youtube.com/embed/jEHBOK0Ck08?autoplay=1&mute=1&loop=1&playlist=jEHBOK0Ck08&controls=0&modestbranding=1&rel=0&showinfo=0"
+                                title="Express AI Demo"
+                                frameBorder="0"
+                                allow="autoplay; encrypted-media"
+                                allowFullScreen
+                                className="video-iframe"
+                            />
+                        )}
                     </div>
                 </div>
             </section>

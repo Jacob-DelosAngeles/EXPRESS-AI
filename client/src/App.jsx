@@ -4,6 +4,7 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router
 import { SignIn, SignUp, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
+import DesktopHome from './pages/DesktopHome';
 import ProductsPage from './pages/ProductsPage';
 import Dashboard from './pages/Dashboard';
 import IRICalculator from './pages/IRICalculator';
@@ -76,8 +77,8 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
+          {/* Root: workspace launcher for desktop, marketing page for web */}
+          <Route path="/" element={IS_DESKTOP ? <DesktopHome /> : <LandingPage />} />
           <Route path="/products" element={
             IS_DESKTOP ? <Navigate to="/app/dashboard" replace /> : <ProductsPage />
           } />

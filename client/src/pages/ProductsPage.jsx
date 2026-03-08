@@ -16,7 +16,7 @@ const ProductsPage = () => {
                             <span className="pp-badge-ping"></span>
                             <span className="pp-badge-dot"></span>
                         </span>
-                        New Version 2.0.0 Available
+                        New Version 2.1.1 Available
                     </div>
 
                     <h1 className="pp-hero-title">
@@ -71,7 +71,7 @@ const ProductsPage = () => {
                                 <div className="pp-meta-grid">
                                     <div className="pp-meta-item">
                                         <span className="pp-meta-label">Version</span>
-                                        <span className="pp-meta-value">v2.1.0</span>
+                                        <span className="pp-meta-value">v2.1.1</span>
                                     </div>
                                     <div className="pp-meta-item">
                                         <span className="pp-meta-label">Size</span>
@@ -89,7 +89,7 @@ const ProductsPage = () => {
 
                                 <div className="pp-cta-buttons">
                                     <a
-                                        href="https://github.com/Jacob-DelosAngeles/EXPRESS-AI/releases/download/v2.1.0/EXPRESS-AI-Setup-2.1.0.exe"
+                                        href="https://github.com/Jacob-DelosAngeles/EXPRESS-AI/releases/download/v2.1.1/EXPRESS-AI-Setup-2.1.1.exe"
                                         className="pp-download-btn"
                                         id="download-installer-btn"
                                         download
@@ -98,7 +98,7 @@ const ProductsPage = () => {
                                         <span>Download Installer</span>
                                     </a>
                                     <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.5rem', textAlign: 'center' }}>
-                                        v2.1.0 &bull; Windows 10/11 64-bit &bull;{' '}
+                                        v2.1.1 &bull; Windows 10/11 64-bit &bull;{' '}
                                         <a
                                             href="https://github.com/Jacob-DelosAngeles/EXPRESS-AI/releases"
                                             target="_blank"
