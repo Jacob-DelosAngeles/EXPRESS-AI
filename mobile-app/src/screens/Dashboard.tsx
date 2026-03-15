@@ -49,7 +49,7 @@ const Dashboard: React.FC<Props> = ({ onNavigate }) => {
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.logoRow}>
-                        <Image source={require('../../assets/express-ai-logo.png')} style={styles.logo} />
+                        <Image source={require('../../assets/expressailogo.png')} style={styles.logo} />
                         <Text style={styles.brandText}>
                             Express <Text style={{ color: Colors.accentGreen }}>AI</Text>
                         </Text>
