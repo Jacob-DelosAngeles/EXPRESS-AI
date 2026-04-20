@@ -415,16 +415,18 @@ const MapArea = () => {
                             return isPointInPolygon([seg.start_lat, seg.start_lon], roiPolygon);
                         }).map((seg, idx) => {
                             if (seg.start_lat && seg.start_lon && seg.end_lat && seg.end_lon) {
-                                // Determine if this is a low-speed segment
                                 const isLowSpeed = seg.speed_flag === 'low_speed' || seg.speed_flag === 'stopped';
+
+                                // Use full waypoints for curved road geometry.
+                                // Fall back to straight start→end line for legacy data without waypoints.
+                                const positions = (seg.waypoints && seg.waypoints.length >= 2)
+                                    ? seg.waypoints
+                                    : [[seg.start_lat, seg.start_lon], [seg.end_lat, seg.end_lon]];
 
                                 return (
                                     <Polyline
                                         key={`iri-${file.id}-${file.segmentLength || 'default'}-${idx}-${seg.iri_value}`}
-                                        positions={[
-                                            [seg.start_lat, seg.start_lon],
-                                            [seg.end_lat, seg.end_lon]
-                                        ]}
+                                        positions={positions}
                                         color={getIriColor(seg.iri_value)}
                                         weight={6}
                                         opacity={isLowSpeed ? 0.6 : 0.8}

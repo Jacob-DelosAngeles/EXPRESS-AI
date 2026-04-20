@@ -214,6 +214,12 @@ This platform is designed to support the following engineering workflows:
 
 ---
 
+## Future Plans
+
+- 🌐 **Web & Mobile Integration** — Add a direct downloadable link of the standalone Mobile App (`.apk`) onto the Web Application dashboard for easier driver onboarding during field surveys.
+
+---
+
 ## Citation
 
 If you use this system or its components in academic work, please cite:

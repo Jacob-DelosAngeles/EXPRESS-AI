@@ -15,6 +15,9 @@ class IRISegment(BaseModel):
     start_lon: Optional[float] = None
     end_lat: Optional[float] = None
     end_lon: Optional[float] = None
+    # Full GPS trace within this segment for curved polyline rendering.
+    # Each entry is [latitude, longitude]. Falls back to [start, end] if empty.
+    waypoints: List[List[float]] = []
 
 class IRIComputationRequest(BaseModel):
     segment_length: int = Field(default=100, description="Length of each IRI segment in meters")

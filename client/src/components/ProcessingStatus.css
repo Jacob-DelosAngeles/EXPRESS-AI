@@ -1,0 +1,256 @@
+/* ProcessingStatus.css */
+.ps-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 24px;
+    font-family: 'Inter', ui-sans-serif, sans-serif;
+    color: #e2e8f0;
+    transition: border-color 0.3s;
+}
+
+.ps-card.ps-done   { border-color: rgba(16, 185, 129, 0.3); }
+.ps-card.ps-failed { border-color: rgba(239, 68, 68, 0.3); }
+
+.ps-card.ps-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #64748b;
+    padding: 16px 20px;
+}
+
+/* Header */
+.ps-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.ps-job-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0 0 6px;
+}
+
+.ps-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 99px;
+    letter-spacing: 0.03em;
+}
+
+.ps-badge-queued     { background: rgba(100,116,139,0.15); color: #94a3b8; }
+.ps-badge-processing { background: rgba(59,130,246,0.12);  color: #60a5fa; }
+.ps-badge-done       { background: rgba(16,185,129,0.12);  color: #10b981; }
+.ps-badge-failed     { background: rgba(239,68,68,0.12);   color: #f87171; }
+.ps-badge-cancelled  { background: rgba(100,116,139,0.10); color: #64748b; }
+
+/* Results summary pills */
+.ps-results-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ps-pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+}
+
+.ps-pill-red    { background: rgba(239,68,68,0.12);  color: #f87171; }
+.ps-pill-yellow { background: rgba(234,179,8,0.12);  color: #facc15; }
+.ps-pill-blue   { background: rgba(59,130,246,0.12); color: #60a5fa; }
+
+/* Progress bar */
+.ps-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.ps-progress-bar {
+    flex: 1;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.ps-progress-fill {
+    height: 100%;
+    background: #3b82f6;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+
+.ps-fill-done { background: #10b981; }
+
+.ps-pct {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    min-width: 36px;
+    text-align: right;
+}
+
+/* Step indicator */
+.ps-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ps-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #334155;
+    transition: color 0.2s;
+}
+
+.ps-step-done  { color: #10b981; }
+.ps-step-active { color: #60a5fa; }
+
+.ps-step-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.ps-step-active .ps-step-dot {
+    animation: ps-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ps-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
+/* Error */
+.ps-error {
+    font-size: 13px;
+    color: #f87171;
+    background: rgba(239,68,68,0.07);
+    border: 1px solid rgba(239,68,68,0.15);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 0;
+}
+
+/* Done CTA */
+.ps-cta-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.ps-cta-btn {
+    padding: 10px 22px;
+    background: #2563eb;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ps-cta-btn:hover { background: #1d4ed8; }
+
+.ps-cta-ghost {
+    padding: 10px 22px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ps-cta-ghost:hover { background: rgba(255,255,255,0.08); }
+
+/* Spinner */
+.ps-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: ps-spin 0.7s linear infinite;
+}
+
+@keyframes ps-spin { to { transform: rotate(360deg); } }
+
+/* Header right side (holds results pills + cancel btn) */
+.ps-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Cancel button */
+.ps-cancel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    color: #f87171;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    white-space: nowrap;
+}
+
+.ps-cancel-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.45);
+    transform: translateY(-1px);
+}
+
+.ps-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Confirm state — orange warning */
+.ps-cancel-btn.ps-cancel-confirm {
+    background: rgba(234, 179, 8, 0.10);
+    border-color: rgba(234, 179, 8, 0.35);
+    color: #facc15;
+    animation: ps-confirm-pulse 0.8s ease-in-out 2;
+}
+
+@keyframes ps-confirm-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.7; }
+}
+
+/* Mini inline spinner for "Stopping…" state */
+.ps-mini-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(248, 113, 113, 0.2);
+    border-top-color: #f87171;
+    border-radius: 50%;
+    animation: ps-spin 0.7s linear infinite;
+    flex-shrink: 0;
+}

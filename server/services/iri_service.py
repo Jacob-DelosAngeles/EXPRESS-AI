@@ -68,26 +68,39 @@ class IRIService:
 
             # Convert segments to response format
             iri_segments = []
+            has_gps = 'latitude' in processed_df.columns and 'longitude' in processed_df.columns
+
             for i, (iri_val, segment) in enumerate(zip(iri_values, segments)):
                 # Extract coordinates if available
                 start_lat, start_lon, end_lat, end_lon = None, None, None, None
+                waypoints = []
                 
                 start_idx = segment.get('start_index')
                 end_idx = segment.get('end_index')
                 
-                if start_idx is not None and end_idx is not None:
-                    # Ensure indices are within bounds
-                    if start_idx < len(processed_df):
-                        if 'latitude' in processed_df.columns and 'longitude' in processed_df.columns:
-                            start_lat = float(processed_df.iloc[start_idx]['latitude'])
-                            start_lon = float(processed_df.iloc[start_idx]['longitude'])
-                    
-                    # For end index, use end_idx - 1 as end_idx is exclusive in slicing but we want the last point
-                    actual_end_idx = end_idx - 1
-                    if actual_end_idx < len(processed_df) and actual_end_idx >= 0:
-                        if 'latitude' in processed_df.columns and 'longitude' in processed_df.columns:
-                            end_lat = float(processed_df.iloc[actual_end_idx]['latitude'])
-                            end_lon = float(processed_df.iloc[actual_end_idx]['longitude'])
+                if start_idx is not None and end_idx is not None and has_gps:
+                    # Clamp indices to valid range
+                    start_idx = max(0, min(start_idx, len(processed_df) - 1))
+                    actual_end_idx = max(0, min(end_idx - 1, len(processed_df) - 1))
+
+                    start_lat = float(processed_df.iloc[start_idx]['latitude'])
+                    start_lon = float(processed_df.iloc[start_idx]['longitude'])
+                    end_lat   = float(processed_df.iloc[actual_end_idx]['latitude'])
+                    end_lon   = float(processed_df.iloc[actual_end_idx]['longitude'])
+
+                    # --- NEW: collect ALL intermediate GPS waypoints ---
+                    # Downsample to at most every 5th row for performance, but
+                    # always include the first and last point.
+                    seg_df = processed_df.iloc[start_idx:actual_end_idx + 1]
+                    step = max(1, len(seg_df) // 20)   # at most ~20 pts per segment
+                    indices = list(range(0, len(seg_df), step))
+                    if (len(seg_df) - 1) not in indices:
+                        indices.append(len(seg_df) - 1)
+                    waypoints = [
+                        [float(seg_df.iloc[j]['latitude']), float(seg_df.iloc[j]['longitude'])]
+                        for j in indices
+                        if pd.notna(seg_df.iloc[j]['latitude']) and pd.notna(seg_df.iloc[j]['longitude'])
+                    ]
 
                 iri_segments.append(IRISegment(
                     segment_id=i + 1,
@@ -95,13 +108,14 @@ class IRIService:
                     distance_end=float(segment['distance_end']),
                     segment_length=float(segment['length']),
                     iri_value=float(iri_val),
-                    mean_speed=float(segment['mean_speed']),  # Use pre-computed value
-                    rms_accel=float(segment['rms_accel']),    # Use pre-computed value
-                    speed_flag=segment.get('speed_flag', 'normal'),  # Speed-aware flag
+                    mean_speed=float(segment['mean_speed']),
+                    rms_accel=float(segment['rms_accel']),
+                    speed_flag=segment.get('speed_flag', 'normal'),
                     start_lat=start_lat,
                     start_lon=start_lon,
                     end_lat=end_lat,
-                    end_lon=end_lon
+                    end_lon=end_lon,
+                    waypoints=waypoints,
                 ))
             
             processing_time = time.time() - start_time

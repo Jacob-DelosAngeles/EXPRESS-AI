@@ -79,6 +79,8 @@ function App() {
         <Routes>
           {/* Root: workspace launcher for desktop, marketing page for web */}
           <Route path="/" element={IS_DESKTOP ? <DesktopHome /> : <LandingPage />} />
+          {/* Direct desktop UI access for dev/testing without Electron */}
+          <Route path="/desktop" element={<DesktopHome />} />
           <Route path="/products" element={
             IS_DESKTOP ? <Navigate to="/app/dashboard" replace /> : <ProductsPage />
           } />
