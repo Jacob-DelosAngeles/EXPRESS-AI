@@ -34,3 +34,5 @@ Thumbs.db
 
 #IRI Verification Checklist
 IRI_Verification_Checklist.md
+# ML model weights (too large for GitHub)
+desktop/models/*.pt

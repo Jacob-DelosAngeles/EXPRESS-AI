@@ -1,131 +1,117 @@
-# Desktop App: Landing Page Redesign + ML Model Integration Plan
+# Desktop ML Pipeline — Implementation Plan (v3)
+
+> ⚠️ **Web App Isolation Guarantee**  
+> All new code lives exclusively in `desktop/backend/`. New endpoints only mount when `DEPLOYMENT_MODE=desktop`. Zero changes to `server/` or the Vercel web deployment.
 
 ---
 
-## Part 1: Observations & Quick Findings
+## Model Registry (`desktop/models/`)
 
-### Products Page — Download Link
-The `ProductsPage.jsx` download button points to a **hardcoded v2.1.0 URL**:
-```
-https://github.com/Jacob-DelosAngeles/EXPRESS-AI/releases/download/v2.1.0/EXPRESS-AI-Setup-2.1.0.exe
-```
-✅ **This is fine** — works as long as the GitHub release tag and `.exe` asset name match exactly.
+| Status | Filename | Task | Architecture | Output |
+|---|---|---|---|---|
+| ✅ Ready | `pothole_detection.pt` | Pothole detection | YOLOv8-det (fine-tuned) | bbox + confidence |
+| ✅ Ready | `pothole_segmentation.pt` | Pothole segmentation | YOLOv8-seg (fine-tuned) | mask → area (m²) |
+| ✅ Ready | `cracks_segmentation.pt` | Crack segmentation | YOLOv8-seg (fine-tuned) | mask → length (m) |
+| ✅ Ready | `road_classification.pt` | Pavement type | YOLOv8-cls (fine-tuned) | asphalt/concrete/unpaved |
+| ✅ Ready | `traffic.pt` | Vehicle counting | **YOLOv8s (not fine-tuned)** | car/truck/bus/moto count |
+| ✅ Ready | `sam2_hiera_small.pt` | Mask refinement | SAM 2 Small (~46MB) | enhanced seg masks |
 
-### Desktop Landing Page — YouTube Embed Error 153
-**Root cause:** Electron's sandboxed Chromium detects the restricted environment and refuses to play YouTube embeds (no public `Referer` header). This is a hard Electron limitation — it cannot be fixed with config changes.
-
-**Verdict:** `LandingPage.jsx` is a web marketing page being shown inside a desktop app. Professional desktop apps (VSCode, Figma, Linear, Notion) never show a marketing landing page — they go directly to the functional interface.
+> **Notes:**
+> - All models + SAM 2 Small are now placed in `desktop/models/`
+> - `traffic.pt` is stock YOLOv8s — fine-tuning is a future step
 
 ---
 
-## Part 2: Desktop Landing Page Redesign
+## Pipeline Architecture
 
-### Design Pattern Reference
-| App | First Screen | Pattern |
+```
+VideoUploadPanel.jsx  (6 task cards)
+  │  POST /api/v1/desktop/process (video + GPS CSV + task + model_name)
+  ▼
+desktop_router.py → ml_pipeline.py (background thread)
+  │
+  ├── pothole_detect  → pothole_detection.pt  + ByteTrack  → bbox + GPS
+  ├── pothole_seg     → pothole_segmentation.pt + SAM 2 ✅  → area_m² + GPS
+  ├── crack_seg       → cracks_segmentation.pt + skeletonize → length_m + GPS
+  ├── road_classify   → road_classification.pt              → pavement type + GPS
+  ├── traffic         → traffic.pt + DeepSORT               → vehicle counts
+  └── IRI (always)   → iri_calculator_logic.py             → IRI per 100m segment
+         │
+         ▼  Poll /api/v1/desktop/status/{job_id} every 2s
+  ProcessingStatus.jsx → DesktopHome jobs table → Dashboard / Analytics
+```
+
+---
+
+## ✅ Completed
+
+| # | Task | Files Changed |
 |---|---|---|
-| **VS Code** | Welcome tab with recent projects | Work-first |
-| **Figma** | Project browser with recent files | Content-first |
-| **Linear** | Dashboard / inbox | Function-first |
-
-### Proposed: `DesktopHome.jsx` — Workspace Launcher
-
-A professional desktop home screen with:
-1. **Header** — App logo + user greeting + version badge
-2. **Primary CTA** — "Process New Video + GPS" (main ML pipeline entry point)
-3. **Quick Actions** — "Open Dashboard", "Open Analytics", "View Reports"
-4. **Recent Jobs** — Last 5 processed video/CSV sessions (one-click re-open)
-5. **System Status Card** — Backend health, model availability, local storage used
-6. **Zero external network dependencies** — Fully offline capable
-
-### Files to Modify
-
-#### [MODIFY] `client/src/App.jsx`
-- Route `/` to `DesktopHome` when `IS_DESKTOP` is true
-
-#### [NEW] `client/src/pages/DesktopHome.jsx`
-- New workspace launcher (designed via Stitch, then implemented)
-
-#### [MODIFY] `client/src/pages/LandingPage.jsx`
-- Remove YouTube `<iframe>` (or guard with `!IS_DESKTOP`)
+| 1 | Backend infrastructure (router, pipeline, queue) | `desktop_router.py`, `ml_pipeline.py` |
+| 2 | GPS sync + model loader | `gps_sync.py`, `model_manager.py` |
+| 3 | `video_processor.py` — 5 task-specific branches | `video_processor.py` |
+| 4 | `VideoUploadPanel.jsx` — 6 real task cards, model/SAM 2 status | `VideoUploadPanel.jsx` |
+| 5 | `desktop_router.py` — task/model_name form params | `desktop_router.py` |
+| 6 | `ml_pipeline.py` — task/model_name threaded through | `ml_pipeline.py` |
+| 7 | SAM 2 Small downloaded| `desktop/models/sam2_hiera_small.pt` |
+| 8 | Install Python ML dependencies (`ultralytics`, `sam2`, etc.) | `server/venv` |
+| 9 | Pothole detection bugfixes (predict fallback, DB `upload_id`) | `video_processor.py`, `ml_pipeline.py` |
+| 10 | Cancel processing job UI/UX | `ProcessingStatus.jsx`, `DesktopHome.jsx` |
+| 11 | Fix survey name persistence bug | `ml_pipeline.py` |
 
 ---
 
-## Part 3: ML Model Integration — Desktop Pipeline
+## 🔲 Next Steps
 
-### Architecture
-```
-User uploads:
-  ├── video.mp4      → YOLO Detection (pothole, crack, vehicle)
-  └── gps_data.csv   → GPS + Timestamp sync
+### ⭐ Step A — End-to-End Testing (In Progress)
 
-            ↓  Desktop ML Pipeline (Python)
+Test each pipeline branch with a real video + GPS CSV to ensure full integration.
 
-  ├── Frame extraction (OpenCV)
-  ├── YOLO inference (ultralytics)
-  ├── GPS interpolation per frame
-  ├── IRI estimation (iri_calculator_logic.py)
-  └── Results → SQLite DB
+1. Start backend: `cd desktop/backend && python desktop_main.py`
+2. Start frontend: `cd client && npm run dev`
+3. Open DesktopHome → Upload → test each task card:
 
-            ↓  Existing React UI
-
-  Dashboard + Analytics auto-populated (no UI changes needed)
-```
-
-### New Backend Files
-
-| File | Purpose |
-|---|---|
-| `desktop/backend/ml_pipeline.py` | Pipeline orchestrator (job queue) |
-| `desktop/backend/video_processor.py` | OpenCV frame extraction + YOLO inference |
-| `desktop/backend/gps_sync.py` | Interpolate GPS per frame |
-| `desktop/backend/model_manager.py` | Load/cache `.pt` model files |
-
-### New API Endpoints
-
-| Endpoint | Method | Purpose |
+| Task | Status | Expected Result |
 |---|---|---|
-| `/api/v1/desktop/process` | `POST` | Start pipeline job |
-| `/api/v1/desktop/status/{job_id}` | `GET` | Poll progress (0–100%) |
-| `/api/v1/desktop/jobs` | `GET` | List past runs |
-| `/api/v1/desktop/cancel/{job_id}` | `DELETE` | Cancel in-progress job |
-
-### New Frontend Files
-
-| File | Purpose |
-|---|---|
-| `client/src/pages/DesktopHome.jsx` | Workspace launcher (home page) |
-| `client/src/components/VideoUploadPanel.jsx` | Drag-and-drop video + GPS CSV upload |
-| `client/src/components/ProcessingStatus.jsx` | Real-time job progress bar |
-
-### Pipeline Steps
-1. **Validate** — Check video format + GPS CSV columns (`timestamp`, `latitude`, `longitude`)
-2. **Extract frames** — OpenCV, 1 frame/sec configurable
-3. **Sync GPS** — Interpolate coordinates per extracted frame
-4. **YOLO inference** — Batch inference on frames, save detection images
-5. **IRI estimation** — Use existing `iri_calculator_logic.py`
-6. **Write to DB** — Insert into SQLite via existing `UploadModel` schema
-7. **Broadcast progress** — Poll `/status/{job_id}` every 2 seconds
-
-### Model Distribution Strategy
-
-| Option | Pros | Cons |
-|---|---|---|
-| **Bundle in installer** | Fully offline immediately | +300MB+ installer |
-| **Download on first run** | Lean installer | Requires internet once |
-
-**Recommendation:** Bundle YOLOv8 nano (light) in installer. Add "Upgrade Model" in settings to download YOLOv8m (medium) for higher accuracy.
-
-> **Warning:** `torch` CPU-only adds ~800MB to bundle. Use `--onedir` PyInstaller mode. Run ML pipeline as a subprocess to isolate memory pressure from the main FastAPI server.
+| Pothole Detection | 🔲 Pending | Markers on Dashboard map with confidence score |
+| Pothole Segmentation | 🔲 Pending | Markers with area_m² in popup, SAM 2 enhanced masks |
+| Crack Segmentation | 🔲 Pending | Markers with length_m in popup |
+| Road Classification | 🔲 Pending | GPS points labeled asphalt/concrete/unpaved |
+| Traffic Counting | 🔲 Pending | Vehicle count summary in Analytics |
+| IRI | 🔲 Pending | Segments on IRI page |
 
 ---
 
-## Verification
+### Step B — Dashboard: Road Classification Map Layer
+Road classification output (`latitude, longitude, type`) needs a new colour-coded  
+GPS polyline layer on the Dashboard map to visualise pavement types.
 
-### Part 1
-- Desktop app opens → `DesktopHome` renders, no YouTube error
-- Vercel web app → still shows YouTube iframe (web users unaffected)
+- **Asphalt** → 🟢 green  
+- **Concrete** → 🔵 blue  
+- **Unpaved** → 🟠 orange
 
-### Part 2
-- Upload `.mp4` + GPS CSV → progress reaches 100%
-- Dashboard → markers at correct GPS coordinates
-- Analytics → pothole count, confidence scores, images populated
+---
+
+### Step D — Fine-tune `traffic.pt`
+When training data is ready, swap `desktop/models/traffic.pt` with the fine-tuned  
+model — no code changes needed, just drop the new file.
+
+---
+
+### Step E — PyInstaller Packaging
+Bundle all models + dependencies into the desktop installer:
+- Add `desktop/models/*.pt` to `pyinstaller.spec` datas
+- Test that `model_manager.py` resolves paths correctly in the bundled `.exe`
+- Rebuild installer: tag `v2.2.0`
+
+---
+
+## Verification Checklist
+
+- [ ] All 5 task cards → pipeline completes without error
+- [ ] Pothole seg → `area_m2` values appear in Dashboard marker popup
+- [ ] Crack seg → `length_m` values appear in Dashboard marker popup
+- [ ] Road classify → pavement type recorded per GPS point
+- [ ] Traffic → vehicle counts visible in Analytics summary
+- [ ] IRI → segments appear on IRI page
+- [ ] Web app (Vercel) → unaffected (zero changes to `server/`)

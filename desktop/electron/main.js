@@ -32,8 +32,12 @@ function getBackendCommand() {
 
     if (isDev) {
         // Development: run Python directly
+        // Prefer the venv python3 so all ML packages are available
+        const venvPython = path.join(__dirname, "..", "..", "server", "venv", "bin", "python3");
+        const fs = require("fs");
+        const pythonCmd = fs.existsSync(venvPython) ? venvPython : "python3";
         return {
-            command: "python",
+            command: pythonCmd,
             args: [
                 path.join(__dirname, "..", "backend", "desktop_main.py"),
                 "--port",

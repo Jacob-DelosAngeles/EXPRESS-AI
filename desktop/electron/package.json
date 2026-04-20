@@ -1,6 +1,6 @@
 {
   "name": "express-ai-desktop",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "EXPRESS-AI — Desktop Road Analytics Tool",
   "main": "main.js",
   "author": "Express AI Team",
@@ -66,3 +66,4 @@
     }
   }
 }
+

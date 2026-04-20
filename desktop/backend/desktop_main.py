@@ -244,6 +244,16 @@ def main():
     # Mount static file serving for images
     mount_static_files(app)
     
+    # Mount desktop-only ML pipeline endpoints
+    # This router is NEVER loaded by the web server (only runs when DEPLOYMENT_MODE=desktop)
+    import sys as _sys
+    _sys.path.insert(0, str(DESKTOP_DIR / "backend"))
+    os.environ["DESKTOP_STORAGE_DIR"] = str(desktop_paths["storage_path"])
+    
+    from desktop_router import router as desktop_api_router
+    app.include_router(desktop_api_router)
+    logger.info("Desktop ML pipeline router mounted at /api/v1/desktop/*")
+    
     # Print the port on stdout so Electron can read it.
     # IMPORTANT: This MUST be after successful app import, so Electron
     # doesn't open the browser window before the backend is ready.
