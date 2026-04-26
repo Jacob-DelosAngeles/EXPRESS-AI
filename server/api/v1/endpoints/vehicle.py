@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
+from core.limiter import limiter
 from typing import List, Optional, Dict, Any
 import os
 import pandas as pd
@@ -35,14 +36,16 @@ class VehicleProcessResponse(BaseModel):
     data: List[VehicleDetection]
 
 @router.get("/process/{filename}", response_model=VehicleProcessResponse)
+@limiter.limit("20/minute")
 async def process_vehicle_data(
+    request: Request,
     filename: str,
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Process a vehicle detection CSV file and return map-ready data.
-    Uses caching for fast repeat requests.
+    Rate limited: 20/minute per IP. Uses caching for fast repeat requests.
     Visibility: users see OWN + SUPERUSER uploads
     """
     # Get superuser IDs for global data visibility

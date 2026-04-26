@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
+from core.limiter import limiter
 from typing import List, Optional, Dict, Any, Union
 import os
 import pandas as pd
@@ -34,15 +35,16 @@ class PavementProcessResponse(BaseModel):
     from_cache: Optional[bool] = False
 
 @router.get("/process/{filename}", response_model=PavementProcessResponse)
+@limiter.limit("20/minute")
 async def process_pavement_data(
+    request: Request,
     filename: str,
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Process a pavement type CSV file and return map-ready segments.
-    Visibility: users see OWN + SUPERUSER uploads
-    Includes caching for instant retrieval after first processing.
+    Rate limited: 20/minute per IP. Cached after first processing.
     """
     # Get superuser IDs for global data visibility
     superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]

@@ -162,7 +162,7 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
         time_array = df['time'].values
         distance = cumulative_trapezoid(speed, time_array, initial=0)
         
-        # Process segments
+        # Process segments (at the requested segment_length for IRI calculation)
         segments = []
         max_distance = distance[-1]
         
@@ -192,7 +192,7 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
             segment_speed = speed[start_idx:end_idx]
             
             rms_accel = np.sqrt(np.mean(segment_accel ** 2))
-            mean_speed = np.mean(segment_speed)
+            mean_speed_val = np.mean(segment_speed)
             
             # Speed-aware IRI constants (must match iri_calculator_logic.py)
             K = 80.59           # Calibration constant
@@ -202,12 +202,10 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
             MAX_IRI_CAP = 16.0      # m/km cap for low-speed
             
             # Speed-aware IRI calculation
-            if mean_speed >= MIN_VALID_SPEED:
-                # Normal calculation with damped speed exponent
-                iri_value = K * rms_accel / (mean_speed ** SPEED_EXPONENT)
+            if mean_speed_val >= MIN_VALID_SPEED:
+                iri_value = K * rms_accel / (mean_speed_val ** SPEED_EXPONENT)
                 speed_flag = 'normal'
-            elif mean_speed > 0:
-                # Low-speed: extrapolate to reference speed and cap
+            elif mean_speed_val > 0:
                 extrapolated_iri = K * rms_accel / (REFERENCE_SPEED ** SPEED_EXPONENT)
                 iri_value = min(extrapolated_iri, MAX_IRI_CAP)
                 speed_flag = 'low_speed'
@@ -224,30 +222,98 @@ def process_iri_chunked(file_obj, segment_length: int = 100, chunk_size: int = 1
                 end_lon = float(df.iloc[end_idx - 1]['longitude'])
             
             segments.append({
+                'segment_id': len(segments) + 1,
                 'start_lat': start_lat,
                 'start_lon': start_lon,
                 'end_lat': end_lat,
                 'end_lon': end_lon,
                 'iri_value': round(iri_value, 2),
                 'color': get_iri_color(iri_value),
-                'mean_speed': round(mean_speed, 2),
-                'speed_flag': speed_flag,  # NEW: for frontend dashed line display
+                'mean_speed': round(mean_speed_val, 2),
+                'speed_flag': speed_flag,
                 'distance_start': round(start_dist, 1),
-                'distance_end': round(end_dist, 1)
+                'distance_end': round(end_dist, 1),
+                # Store indices for display subdivision
+                '_start_idx': int(start_idx),
+                '_end_idx': int(end_idx),
             })
+        
+        # ================================================================
+        # Generate 25m display sub-segments from each calculation segment
+        # Each display segment inherits the parent's IRI value and color
+        # ================================================================
+        DISPLAY_LENGTH = 25  # Always 25m for map display
+        display_segments = []
+        
+        for seg in segments:
+            seg_start_dist = seg['distance_start']
+            seg_end_dist = seg['distance_end']
+            seg_start_idx = seg['_start_idx']
+            seg_end_idx = seg['_end_idx']
+            
+            # Subdivide this calculation segment into 25m display chunks
+            for sub_start in np.arange(seg_start_dist, seg_end_dist, DISPLAY_LENGTH):
+                sub_end = min(sub_start + DISPLAY_LENGTH, seg_end_dist)
+                
+                # Skip tiny trailing fragments (<2m)
+                if (sub_end - sub_start) < 2.0 and len(display_segments) > 0:
+                    continue
+                
+                # Find GPS indices for this display chunk
+                sub_start_idx = np.argmin(np.abs(distance - sub_start))
+                sub_end_idx = np.argmin(np.abs(distance - sub_end))
+                
+                # Clamp to parent segment bounds
+                sub_start_idx = max(sub_start_idx, seg_start_idx)
+                sub_end_idx = min(sub_end_idx, seg_end_idx)
+                
+                if sub_end_idx <= sub_start_idx:
+                    if sub_end_idx < len(distance) - 1:
+                        sub_end_idx = sub_start_idx + 1
+                    else:
+                        continue
+                
+                sub_start_lat, sub_start_lon = None, None
+                sub_end_lat, sub_end_lon = None, None
+                if has_gps:
+                    sub_start_lat = float(df.iloc[sub_start_idx]['latitude'])
+                    sub_start_lon = float(df.iloc[sub_start_idx]['longitude'])
+                    actual_end = min(sub_end_idx, len(df) - 1)
+                    sub_end_lat = float(df.iloc[actual_end]['latitude'])
+                    sub_end_lon = float(df.iloc[actual_end]['longitude'])
+                
+                display_segments.append({
+                    'start_lat': sub_start_lat,
+                    'start_lon': sub_start_lon,
+                    'end_lat': sub_end_lat,
+                    'end_lon': sub_end_lon,
+                    'iri_value': seg['iri_value'],       # Inherited from parent
+                    'color': seg['color'],               # Inherited from parent
+                    'mean_speed': seg['mean_speed'],     # Inherited from parent
+                    'speed_flag': seg['speed_flag'],     # Inherited from parent
+                    'parent_segment_id': seg['segment_id'],
+                    'distance_start': round(sub_start, 1),
+                    'distance_end': round(sub_end, 1),
+                })
+        
+        # Remove internal indices from calculation segments before returning
+        for seg in segments:
+            seg.pop('_start_idx', None)
+            seg.pop('_end_idx', None)
         
         # Cleanup
         del df, vertical_accel, speed, distance, az_filtered
         gc.collect()
         
-        logger.info(f"Created {len(segments)} segments")
+        logger.info(f"Created {len(segments)} calculation segments, {len(display_segments)} display segments")
         
         return {
             'success': True,
             'message': f'Processed {len(segments)} segments',
             'total_segments': len(segments),
             'sampling_rate': round(sampling_rate, 2),
-            'segments': segments
+            'segments': segments,
+            'display_segments': display_segments,
         }
         
     except Exception as e:

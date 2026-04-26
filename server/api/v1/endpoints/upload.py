@@ -1,11 +1,12 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from typing import List
 from sqlalchemy.orm import Session
 import os
 import logging
-import gc  # Garbage collection for memory management
+import gc
 import json
 from datetime import datetime
+from core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,10 @@ ALLOWED_EXTENSIONS = {
 }
 
 @router.post("/", response_model=List[FileUploadResponse])
+@limiter.limit("10/minute")
 async def upload_files(
-    files: List[UploadFile] = File(...), 
+    request: Request,
+    files: List[UploadFile] = File(...),
     type: str = "iri",
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -48,9 +51,22 @@ async def upload_files(
     """
     Upload multiple files (CSV and/or images).
     type: 'iri', 'pothole', or 'vehicle'
-    Files are saved to user-specific storage and tracked in database.
+    Rate limited: 10/minute per IP. Max 3 concurrent uploads (semaphore).
     Requires admin or superuser role.
     """
+    semaphore = getattr(request.app.state, "upload_semaphore", None)
+
+    async def _upload():
+        return await _do_upload(files, type, current_user, db)
+
+    if semaphore:
+        async with semaphore:
+            return await _upload()
+    else:
+        return await _upload()
+
+
+async def _do_upload(files, type, current_user, db):
     # Role check: Only admins and superusers can upload
     if not current_user.is_admin:
         raise HTTPException(

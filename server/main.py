@@ -1,8 +1,11 @@
 import os
+import asyncio
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 import uvicorn
 
 # Configure logging
@@ -22,6 +25,7 @@ except ImportError as e:
 from api.v1.endpoints import auth, upload, iri, pothole, vehicle, pavement, presign, uploads
 from core.config import settings
 from core.database import engine
+from core.limiter import limiter
 from models import user, upload as upload_models
 
 # Create FastAPI app
@@ -30,6 +34,10 @@ app = FastAPI(
     description="Backend API for Digital Analytics for Asset-based Navigation of Roads",
     version=settings.PROJECT_VERSION
 )
+
+# Rate limiting (slowapi)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS from environment variable (comma-separated list)
 # Example: CORS_ORIGINS=https://your-app.vercel.app,http://localhost:5173
@@ -90,7 +98,15 @@ async def startup_event():
     """Create database tables on startup (with retry for cold starts)."""
     import time
     max_retries = 3
-    
+
+    # Concurrency semaphores — prevent simultaneous heavy ops from hitting 512 MB Render limit
+    # IRI compute is the heaviest: max 2 at a time
+    app.state.iri_semaphore = asyncio.Semaphore(2)
+    # Pothole/crack processing with presigned URL generation: max 3 at a time
+    app.state.pothole_semaphore = asyncio.Semaphore(3)
+    # File uploads (includes IRI lite processing): max 3 at a time
+    app.state.upload_semaphore = asyncio.Semaphore(3)
+
     for attempt in range(max_retries):
         try:
             user.Base.metadata.create_all(bind=engine)

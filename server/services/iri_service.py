@@ -70,10 +70,14 @@ class IRIService:
             iri_segments = []
             has_gps = 'latitude' in processed_df.columns and 'longitude' in processed_df.columns
 
+            # We need distance array for display subdivision
+            from scipy.integrate import cumulative_trapezoid
+            time_array = processed_df['time'].values
+            calc_distance = cumulative_trapezoid(speed, time_array, initial=0)
+
             for i, (iri_val, segment) in enumerate(zip(iri_values, segments)):
                 # Extract coordinates if available
                 start_lat, start_lon, end_lat, end_lon = None, None, None, None
-                waypoints = []
                 
                 start_idx = segment.get('start_index')
                 end_idx = segment.get('end_index')
@@ -88,20 +92,6 @@ class IRIService:
                     end_lat   = float(processed_df.iloc[actual_end_idx]['latitude'])
                     end_lon   = float(processed_df.iloc[actual_end_idx]['longitude'])
 
-                    # --- NEW: collect ALL intermediate GPS waypoints ---
-                    # Downsample to at most every 5th row for performance, but
-                    # always include the first and last point.
-                    seg_df = processed_df.iloc[start_idx:actual_end_idx + 1]
-                    step = max(1, len(seg_df) // 20)   # at most ~20 pts per segment
-                    indices = list(range(0, len(seg_df), step))
-                    if (len(seg_df) - 1) not in indices:
-                        indices.append(len(seg_df) - 1)
-                    waypoints = [
-                        [float(seg_df.iloc[j]['latitude']), float(seg_df.iloc[j]['longitude'])]
-                        for j in indices
-                        if pd.notna(seg_df.iloc[j]['latitude']) and pd.notna(seg_df.iloc[j]['longitude'])
-                    ]
-
                 iri_segments.append(IRISegment(
                     segment_id=i + 1,
                     distance_start=float(segment['distance_start']),
@@ -115,8 +105,55 @@ class IRIService:
                     start_lon=start_lon,
                     end_lat=end_lat,
                     end_lon=end_lon,
-                    waypoints=waypoints,
                 ))
+
+            # ================================================================
+            # Generate 25m display sub-segments for map rendering
+            # Each display segment inherits the parent's IRI value and color
+            # ================================================================
+            from services.iri_lite import get_iri_color
+            DISPLAY_LENGTH = 25  # Always 25m for map display
+            display_segments = []
+
+            for seg in iri_segments:
+                seg_start_dist = seg.distance_start
+                seg_end_dist = seg.distance_end
+
+                for sub_start in np.arange(seg_start_dist, seg_end_dist, DISPLAY_LENGTH):
+                    sub_end = min(sub_start + DISPLAY_LENGTH, seg_end_dist)
+
+                    # Skip tiny trailing fragments
+                    if (sub_end - sub_start) < 2.0 and len(display_segments) > 0:
+                        continue
+
+                    sub_start_lat, sub_start_lon = None, None
+                    sub_end_lat, sub_end_lon = None, None
+
+                    if has_gps:
+                        sub_s_idx = int(np.argmin(np.abs(calc_distance - sub_start)))
+                        sub_e_idx = int(np.argmin(np.abs(calc_distance - sub_end)))
+                        sub_e_idx = max(sub_s_idx + 1, sub_e_idx)
+                        sub_e_idx = min(sub_e_idx, len(processed_df) - 1)
+
+                        sub_start_lat = float(processed_df.iloc[sub_s_idx]['latitude'])
+                        sub_start_lon = float(processed_df.iloc[sub_s_idx]['longitude'])
+                        sub_end_lat = float(processed_df.iloc[sub_e_idx]['latitude'])
+                        sub_end_lon = float(processed_df.iloc[sub_e_idx]['longitude'])
+
+                    from models.iri_models import IRIDisplaySegment
+                    display_segments.append(IRIDisplaySegment(
+                        start_lat=sub_start_lat,
+                        start_lon=sub_start_lon,
+                        end_lat=sub_end_lat,
+                        end_lon=sub_end_lon,
+                        iri_value=seg.iri_value,
+                        color=get_iri_color(seg.iri_value),
+                        mean_speed=seg.mean_speed,
+                        speed_flag=seg.speed_flag,
+                        parent_segment_id=seg.segment_id,
+                        distance_start=round(sub_start, 1),
+                        distance_end=round(sub_end, 1),
+                    ))
             
             processing_time = time.time() - start_time
             
@@ -125,6 +162,7 @@ class IRIService:
                 message=f"Successfully computed IRI for {len(iri_segments)} segments",
                 total_segments=len(iri_segments),
                 segments=iri_segments,
+                display_segments=display_segments,
                 processing_time=processing_time,
                 sampling_rate=float(sampling_rate),
                 raw_data=raw_data,

@@ -11,7 +11,7 @@ const IRICalculator = () => {
     const [loading, setLoading] = useState(false);
     const [activeResult, setActiveResult] = useState(null);
     const [error, setError] = useState(null);
-    const [segmentLength, setSegmentLength] = useState(100);
+    const [segmentLength, setSegmentLength] = useState(25);
 
     const { addIriFile, iriFiles } = useAppStore();
 
@@ -48,6 +48,7 @@ const IRICalculator = () => {
                         addIriFile({
                             filename: file.name,
                             segments: computationResponse.segments,
+                            display_segments: computationResponse.display_segments,
                             raw_data: computationResponse.raw_data,
                             filtered_data: computationResponse.filtered_data,
                             stats: {

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
+from core.limiter import limiter
 from typing import List, Dict, Any, Optional
 from functools import lru_cache
 import pandas as pd
@@ -48,17 +49,20 @@ calibrator = RoadCalibrator()
 
 
 @router.get("/process/{filename}", response_model=Dict[str, Any])
+@limiter.limit("10/minute")
 async def process_pothole_data(
+    request: Request,
     filename: str,
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Process an uploaded pothole detection CSV file.
-    Returns a list of pothole markers with popup HTML.
-    Uses caching for fast repeat requests.
-    - All users can view shared data (read-only for non-admins)
+    Rate limited: 10/minute per IP. Max 3 concurrent (semaphore).
+    Returns cached result instantly on repeat requests.
     """
+    semaphore = getattr(request.app.state, "pothole_semaphore", None)
+
     # 1. Fetch the upload record
     # Visibility rules:
     #   - Users see their OWN uploads + SUPERUSER uploads (global/sample data)
@@ -135,6 +139,16 @@ async def process_pothole_data(
             # Invalid cache, proceed to re-process
             pass
     
+    if semaphore:
+        async with semaphore:
+            return await _process_pothole_heavy(upload_record, filename, current_user, db)
+    else:
+        return await _process_pothole_heavy(upload_record, filename, current_user, db)
+
+
+async def _process_pothole_heavy(upload_record, filename, current_user, db):
+    """Heavy pothole processing — runs under the concurrency semaphore."""
+    category = upload_record.category  # 'pothole' or 'crack'
     try:
         # Use the storage path from the record
         path_to_read = upload_record.storage_path

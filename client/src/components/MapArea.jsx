@@ -409,7 +409,8 @@ const MapArea = () => {
                 {/* IRI Segments */}
                 {activeLayers.iri && iriFiles.filter(f => f.visible).map(file => (
                     <React.Fragment key={file.id}>
-                        {file.segments.filter(seg => {
+                        {/* Use display_segments (25m) for map rendering when available, else fall back to segments */}
+                        {(file.display_segments || file.segments).filter(seg => {
                             if (!roiPolygon) return true;
                             // ROI filtering for segments (check start point)
                             return isPointInPolygon([seg.start_lat, seg.start_lon], roiPolygon);
@@ -417,11 +418,7 @@ const MapArea = () => {
                             if (seg.start_lat && seg.start_lon && seg.end_lat && seg.end_lon) {
                                 const isLowSpeed = seg.speed_flag === 'low_speed' || seg.speed_flag === 'stopped';
 
-                                // Use full waypoints for curved road geometry.
-                                // Fall back to straight start→end line for legacy data without waypoints.
-                                const positions = (seg.waypoints && seg.waypoints.length >= 2)
-                                    ? seg.waypoints
-                                    : [[seg.start_lat, seg.start_lon], [seg.end_lat, seg.end_lon]];
+                                const positions = [[seg.start_lat, seg.start_lon], [seg.end_lat, seg.end_lon]];
 
                                 return (
                                     <Polyline

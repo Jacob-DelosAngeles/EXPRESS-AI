@@ -238,7 +238,7 @@ class IRICalculator:
 
     # Finally, calculation of IRI by RMS method
     # Possible points of improvement: Have a user input how many meters is in a segment
-    def calculate_iri_rms_method(self, df, segment_length=100):     # create IRI values for every 100m
+    def calculate_iri_rms_method(self, df, segment_length=25):     # create IRI values for every 25m
 
         # Filtered data
         df_filtered, sampling_rate = self.filter_accelerometer_data(df)

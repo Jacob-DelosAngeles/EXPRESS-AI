@@ -2,6 +2,20 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+// In-flight GET deduplication: if the same URL is already in-flight, reuse the same promise.
+// This prevents double-fetches when React StrictMode or rapid re-renders hit the same endpoint.
+const _inflightGets = new Map();
+
+const deduplicatedGet = (url, config) => {
+    const key = url + (config?.params ? JSON.stringify(config.params) : '');
+    if (_inflightGets.has(key)) {
+        return _inflightGets.get(key);
+    }
+    const promise = api.get(url, config).finally(() => _inflightGets.delete(key));
+    _inflightGets.set(key, promise);
+    return promise;
+};
+
 const api = axios.create({
     baseURL: API_URL,
     headers: {
@@ -141,8 +155,7 @@ export const fileService = {
 
     computeIRI: async (filename, segmentLength = 100) => {
         try {
-            // Use GET request to avoid CORS preflight entirely
-            const response = await api.get(`/iri/compute/${filename}?segment_length=${segmentLength}`);
+            const response = await deduplicatedGet(`/iri/compute/${filename}?segment_length=${segmentLength}`);
             return response.data;
         } catch (error) {
             console.error('IRI computation error:', error);
@@ -153,10 +166,9 @@ export const fileService = {
     // Get cached IRI data (INSTANT - preferred method)
     getCachedIRI: async (filename) => {
         try {
-            const response = await api.get(`/iri/cached/${filename}`);
+            const response = await deduplicatedGet(`/iri/cached/${filename}`);
             return response.data;
         } catch (error) {
-            // If cache not found (404), fall back to compute
             if (error.response?.status === 404) {
                 console.log('IRI cache miss, falling back to compute...');
                 return fileService.computeIRI(filename);
@@ -168,7 +180,7 @@ export const fileService = {
 
     processPotholes: async (filename) => {
         try {
-            const response = await api.get(`/pothole/process/${filename}`);
+            const response = await deduplicatedGet(`/pothole/process/${filename}`);
             return response.data;
         } catch (error) {
             console.error('Pothole processing error:', error);
@@ -178,7 +190,7 @@ export const fileService = {
 
     processVehicles: async (filename) => {
         try {
-            const response = await api.get(`/vehicle/process/${filename}`);
+            const response = await deduplicatedGet(`/vehicle/process/${filename}`);
             return response.data;
         } catch (error) {
             console.error('Vehicle processing error:', error);
@@ -188,7 +200,7 @@ export const fileService = {
 
     processPavement: async (filename) => {
         try {
-            const response = await api.get(`/pavement/process/${filename}`);
+            const response = await deduplicatedGet(`/pavement/process/${filename}`);
             return response.data;
         } catch (error) {
             console.error('Pavement processing error:', error);
@@ -199,7 +211,7 @@ export const fileService = {
     getUploadedFiles: async (category = null) => {
         try {
             const url = category ? `/upload/files/${category}` : '/upload/files';
-            const response = await api.get(url);
+            const response = await deduplicatedGet(url);
             return response.data;
         } catch (error) {
             console.error('Get files error:', error);

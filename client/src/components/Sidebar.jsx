@@ -21,7 +21,7 @@ const UploadSection = ({ title, subLabel, onUpload, icon, accept = { 'text/csv':
   const [fileName, setFileName] = useState('');
 
   const onDrop = async (acceptedFiles) => {
-    if (acceptedFiles.length === 0) return;
+    if (acceptedFiles.length === 0 || loading) return;
 
     setLoading(true);
     setError(null);
@@ -283,6 +283,7 @@ const Sidebar = () => {
   }, []);
 
   const [deleteConfirm, setDeleteConfirm] = useState(null); // ID of file pending deletion confirmation
+  const [deletingIds, setDeletingIds] = useState(new Set()); // IDs currently being deleted (prevents double-click)
   const [isRestoring, setIsRestoring] = useState(true); // Track initial data loading
   const [restoreError, setRestoreError] = useState(null); // Track loading errors
 
@@ -593,80 +594,30 @@ const Sidebar = () => {
     window.location.reload();
   };
 
-  const handleDeleteIri = async (id, e) => {
+  const _deleteFile = async (id, e, removeFromStore) => {
     e.stopPropagation();
+    if (deletingIds.has(id)) return;
+    setDeletingIds(prev => new Set([...prev, id]));
     try {
       const res = await fileService.deleteFile(id);
       if (res.success) {
-        removeIriFile(id);
+        removeFromStore(id);
         setDeleteConfirm(null);
       } else {
         alert(res.message || 'Delete failed');
       }
     } catch (err) {
       console.error("Delete failed", err);
+    } finally {
+      setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
     }
   };
 
-  const handleDeletePothole = async (id, e) => {
-    e.stopPropagation();
-    try {
-      const res = await fileService.deleteFile(id);
-      if (res.success) {
-        removePotholeFile(id);
-        setDeleteConfirm(null);
-      } else {
-        alert(res.message || 'Delete failed');
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
-  };
-
-  const handleDeleteCrack = async (id, e) => {
-    e.stopPropagation();
-    try {
-      const res = await fileService.deleteFile(id);
-      if (res.success) {
-        removeCrackFile(id);
-        setDeleteConfirm(null);
-      } else {
-        alert(res.message || 'Delete failed');
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
-  };
-
-  const handleDeleteVehicle = async (id, e) => {
-    e.stopPropagation();
-    try {
-      const res = await fileService.deleteFile(id);
-      if (res.success) {
-        removeVehicleFile(id);
-        setDeleteConfirm(null);
-      } else {
-        alert(res.message || 'Delete failed');
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
-  };
-
-  const handleDeletePavement = async (id, e) => {
-    e.stopPropagation();
-    try {
-      const res = await fileService.deleteFile(id);
-      if (res.success) {
-        removePavementFile(id);
-        setDeleteConfirm(null);
-      } else {
-        alert(res.message || 'Delete failed');
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
-  };
+  const handleDeleteIri     = (id, e) => _deleteFile(id, e, removeIriFile);
+  const handleDeletePothole = (id, e) => _deleteFile(id, e, removePotholeFile);
+  const handleDeleteCrack   = (id, e) => _deleteFile(id, e, removeCrackFile);
+  const handleDeleteVehicle = (id, e) => _deleteFile(id, e, removeVehicleFile);
+  const handleDeletePavement = (id, e) => _deleteFile(id, e, removePavementFile);
 
   const handleIriUpload = async (file) => {
     const uploadRes = await fileService.uploadFile(file, 'iri');
@@ -685,6 +636,7 @@ const Sidebar = () => {
           id: result.id, // Use real DB ID
           filename: file.name,
           segments: computeRes.segments,
+          display_segments: computeRes.display_segments,
           raw_data: computeRes.raw_data,
           filtered_data: computeRes.filtered_data,
           stats: {
@@ -1017,7 +969,8 @@ const Sidebar = () => {
                         {deleteConfirm === file.id ? (
                           <button
                             onClick={(e) => handleDeleteVehicle(file.id, e)}
-                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                            disabled={deletingIds.has(file.id)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-50"
                           >
                             Confirm
                           </button>
@@ -1063,7 +1016,8 @@ const Sidebar = () => {
                         {deleteConfirm === file.id ? (
                           <button
                             onClick={(e) => handleDeletePothole(file.id, e)}
-                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                            disabled={deletingIds.has(file.id)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-50"
                           >
                             Confirm
                           </button>
@@ -1109,7 +1063,8 @@ const Sidebar = () => {
                         {deleteConfirm === file.id ? (
                           <button
                             onClick={(e) => handleDeleteCrack(file.id, e)}
-                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                            disabled={deletingIds.has(file.id)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-50"
                           >
                             Confirm
                           </button>
@@ -1154,7 +1109,8 @@ const Sidebar = () => {
                         {deleteConfirm === file.id ? (
                           <button
                             onClick={(e) => handleDeletePavement(file.id, e)}
-                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                            disabled={deletingIds.has(file.id)}
+                            className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-50"
                           >
                             Confirm
                           </button>
@@ -1210,7 +1166,8 @@ const Sidebar = () => {
                           {deleteConfirm === file.id ? (
                             <button
                               onClick={(e) => handleDeleteIri(file.id, e)}
-                              className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors"
+                              disabled={deletingIds.has(file.id)}
+                              className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-50"
                             >
                               Confirm
                             </button>
