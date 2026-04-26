@@ -277,7 +277,8 @@ async def _do_upload(files, type, current_user, db):
                         iri_result = process_iri_chunked(file.file)
                         
                         if iri_result['success']:
-                            # Store only the lightweight map data
+                            # Tag with segment_length so compute endpoint can match cache hits
+                            iri_result['segment_length'] = 100
                             db_upload.cached_data = json.dumps(iri_result)
                             db_upload.cache_timestamp = datetime.utcnow()
                             db.commit()

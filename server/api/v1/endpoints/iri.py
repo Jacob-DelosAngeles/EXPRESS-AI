@@ -1,28 +1,26 @@
-from fastapi import APIRouter, HTTPException, Query, Request, Depends
-from typing import Optional
-import os
 import gc
+import json
+import time as _time
 from io import BytesIO
-from core.limiter import limiter
+from datetime import datetime
 
-from models.iri_models import IRIComputationRequest, IRIComputationResponse, ErrorResponse
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
+from sqlalchemy.orm import Session
+
+from core.clerk_auth import get_current_user
+from core.database import get_db
+from core.limiter import limiter
+from models.iri_models import IRIComputationRequest, IRIComputationResponse
 from models.upload import UploadModel
 from models.user import UserModel
-from services.iri_service import IRIService
-from core.database import get_db
-from core.clerk_auth import get_current_user
-from core import security
-from core.config import settings
-from sqlalchemy.orm import Session
+from services.iri_lite import process_iri_chunked
 from utils.file_handler import FileHandler
 
 router = APIRouter()
-
-iri_service = IRIService()
 file_handler = FileHandler()
 
 
-@router.get("/compute/{filename}", response_model=IRIComputationResponse)
+@router.get("/compute/{filename}")
 @limiter.limit("5/minute")
 async def compute_iri(
     request: Request,
@@ -33,19 +31,19 @@ async def compute_iri(
     db: Session = Depends(get_db)
 ):
     """
-    Compute IRI values for an uploaded file.
-    Rate limited: 5/minute per IP. Max 2 concurrent computations (semaphore).
+    Compute IRI values using the lightweight chunked processor.
+    Rate limited: 5/minute per IP. Max 2 concurrent (semaphore).
+    Result cached per segment_length — subsequent calls for same length are instant.
     """
-    content_bytes = None
-    file_obj = None
-    result = None
-
     semaphore = getattr(request.app.state, "iri_semaphore", None)
 
     async def _compute():
-        nonlocal content_bytes, file_obj, result
+        content_bytes = None
+        file_obj = None
         try:
-            superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+            superuser_ids = [
+                u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()
+            ]
 
             upload_record = None
             if filename.isdigit():
@@ -53,7 +51,6 @@ async def compute_iri(
                     UploadModel.id == int(filename),
                     ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
                 ).first()
-
                 if not upload_record and current_user.is_superuser:
                     upload_record = db.query(UploadModel).filter(
                         UploadModel.id == int(filename)
@@ -65,7 +62,6 @@ async def compute_iri(
                     UploadModel.filename == filename,
                     ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
                 ).order_by(UploadModel.upload_date.desc()).first()
-
                 if not upload_record and current_user.is_superuser:
                     upload_record = db.query(UploadModel).filter(
                         UploadModel.file_type == 'csv',
@@ -73,21 +69,40 @@ async def compute_iri(
                     ).order_by(UploadModel.upload_date.desc()).first()
 
             if not upload_record:
-                raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
+                raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
-            storage_path = upload_record.storage_path
-            content_bytes = file_handler.storage.get_file_content(storage_path)
+            # Cache hit — return instantly if same segment_length was already computed
+            if upload_record.cached_data:
+                try:
+                    cached = json.loads(upload_record.cached_data)
+                    if cached.get('segment_length') == segment_length and cached.get('success'):
+                        cached['from_cache'] = True
+                        return cached
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+            # Cache miss — run lightweight computation
+            t0 = _time.time()
+            content_bytes = file_handler.storage.get_file_content(upload_record.storage_path)
             file_obj = BytesIO(content_bytes)
 
-            iri_request = IRIComputationRequest(
-                segment_length=segment_length,
-                cutoff_freq=cutoff_freq
-            )
+            result = process_iri_chunked(file_obj, segment_length=segment_length)
 
-            result = await iri_service.process_file_and_compute_iri(file_obj, iri_request)
+            if not result.get('success'):
+                raise HTTPException(status_code=400, detail=result.get('message', 'Computation failed'))
 
-            if not result.success:
-                raise HTTPException(status_code=400, detail=result.message)
+            # Tag and save to cache so next request is instant
+            result['segment_length'] = segment_length
+            result['processing_time'] = round(_time.time() - t0, 3)
+            result['raw_data'] = []       # Chart data not available in lightweight mode
+            result['filtered_data'] = []
+
+            try:
+                upload_record.cached_data = json.dumps(result)
+                upload_record.cache_timestamp = datetime.utcnow()
+                db.commit()
+            except Exception:
+                pass  # Non-fatal — still return the result
 
             return result
 
@@ -96,8 +111,6 @@ async def compute_iri(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"IRI computation failed: {str(e)}")
         finally:
-            if file_obj:
-                file_obj.close()
             del content_bytes
             del file_obj
             gc.collect()
@@ -117,11 +130,11 @@ async def get_cached_iri(
 ):
     """
     Get pre-processed IRI data from cache (INSTANT - no processing).
-    Visibility: users see OWN + SUPERUSER uploads
+    Visibility: users see OWN + SUPERUSER uploads.
     """
-    import json
-
-    superuser_ids = [u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()]
+    superuser_ids = [
+        u.id for u in db.query(UserModel.id).filter(UserModel.role == 'superuser').all()
+    ]
 
     upload_record = None
     if filename.isdigit():
@@ -129,7 +142,6 @@ async def get_cached_iri(
             UploadModel.id == int(filename),
             ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).first()
-
         if not upload_record and current_user.is_superuser:
             upload_record = db.query(UploadModel).filter(
                 UploadModel.id == int(filename)
@@ -141,7 +153,6 @@ async def get_cached_iri(
             UploadModel.filename == filename,
             ((UploadModel.user_id == current_user.id) | (UploadModel.user_id.in_(superuser_ids)))
         ).order_by(UploadModel.upload_date.desc()).first()
-
         if not upload_record and current_user.is_superuser:
             upload_record = db.query(UploadModel).filter(
                 UploadModel.file_type == 'csv',
@@ -149,7 +160,7 @@ async def get_cached_iri(
             ).order_by(UploadModel.upload_date.desc()).first()
 
     if not upload_record:
-        raise HTTPException(status_code=404, detail=f"File not found with identifier: {filename}")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
     if upload_record.cached_data:
         try:
@@ -167,7 +178,6 @@ async def get_cached_iri(
 
 @router.get("/status")
 async def get_service_status():
-    """Get the current status of the IRI computation service."""
     return {
         "success": True,
         "service": "IRI Computation Service",

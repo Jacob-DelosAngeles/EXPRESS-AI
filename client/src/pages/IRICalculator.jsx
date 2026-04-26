@@ -82,8 +82,8 @@ const IRICalculator = () => {
     // Use activeResult or the last file from store if available
     const displayResult = activeResult || (iriFiles.length > 0 ? {
         segments: iriFiles[iriFiles.length - 1].segments,
-        raw_data: iriFiles[iriFiles.length - 1].raw_data,
-        filtered_data: iriFiles[iriFiles.length - 1].filtered_data,
+        raw_data: iriFiles[iriFiles.length - 1].raw_data || [],
+        filtered_data: iriFiles[iriFiles.length - 1].filtered_data || [],
         total_segments: iriFiles[iriFiles.length - 1].stats.totalSegments
     } : null);
 
@@ -193,7 +193,8 @@ const IRICalculator = () => {
 
                     {/* Charts */}
                     <div className="space-y-6">
-                        {/* Raw Accelerometer Data */}
+                        {/* Raw Accelerometer Data — only shown when full computation was used */}
+                        {displayResult.raw_data && displayResult.raw_data.length > 0 && (
                         <div className="bg-white rounded-lg shadow p-6">
                             <h3 className="text-lg font-bold mb-4">Raw Accelerometer Data</h3>
                             <div className="h-80">
@@ -215,8 +216,10 @@ const IRICalculator = () => {
                                 </ResponsiveContainer>
                             </div>
                         </div>
+                        )}
 
-                        {/* Filtered Vertical Acceleration */}
+                        {/* Filtered Vertical Acceleration — only shown when full computation was used */}
+                        {displayResult.filtered_data && displayResult.filtered_data.length > 0 && (
                         <div className="bg-white rounded-lg shadow p-6">
                             <h3 className="text-lg font-bold mb-4">Filtered Vertical Acceleration</h3>
                             <div className="h-80">
@@ -236,6 +239,7 @@ const IRICalculator = () => {
                                 </ResponsiveContainer>
                             </div>
                         </div>
+                        )}
 
                         {/* IRI Profile */}
                         <div className="bg-white rounded-lg shadow p-6">
