@@ -158,6 +158,26 @@ def monkey_patch_auth():
     logger.info("Monkey-patched Clerk auth → Desktop auth (auto-superuser)")
 
 
+def monkey_patch_limiter():
+    """
+    Replace the slowapi rate limiter with a no-op for desktop mode.
+
+    The web server uses rate limits to protect a shared 512 MB Render instance.
+    Desktop runs locally with the user's full RAM, so limits would only frustrate
+    power users processing many files. Patching here (before `from main import app`)
+    ensures all @limiter.limit(...) decorators on endpoints become identity functions.
+    """
+    class _NoopLimiter:
+        def limit(self, *args, **kwargs):
+            return lambda f: f
+        def exempt(self, f):
+            return f
+
+    import core.limiter as _limiter_mod
+    _limiter_mod.limiter = _NoopLimiter()
+    logger.info("Patched rate limiter → no-op (desktop mode, unlimited local requests)")
+
+
 def monkey_patch_storage():
     """
     Patch storage to use the desktop data directory AND serve images
@@ -233,9 +253,10 @@ def main():
     
     # Apply monkey patches
     monkey_patch_auth()
+    monkey_patch_limiter()           # Must run before app import so decorators see the no-op
     monkey_patch_storage()          # Prepares the storage class
     apply_storage_patch(port, args.host)  # Finalizes with correct port
-    
+
     # Import the actual FastAPI app (AFTER patches are applied)
     # This can take several seconds and may fail due to missing modules.
     logger.info("Importing FastAPI application...")

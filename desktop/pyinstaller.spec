@@ -142,6 +142,14 @@ a = Analysis(
         'email_validator',
         # SQLAlchemy dialects (sqlite for desktop)
         'sqlalchemy.dialects.sqlite',
+        # slowapi / limits — imported by core.limiter and main.py; patched to no-op at runtime
+        'slowapi',
+        'slowapi.errors',
+        'slowapi.wrappers',
+        'limits',
+        'limits.storage',
+        'limits.strategies',
+        'core.limiter',
     ],
     hookspath=[],
     hooksconfig={},
